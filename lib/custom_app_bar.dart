@@ -108,7 +108,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
         // Add core languages first
         for (final langCode in OcrProcessor.bundledLanguages) {
-          final langName = LanguageNames.getNameForCode(langCode);
+          final langName = LanguageCatalog.getNameForCode(langCode);
           final flag = LanguageUtil.getFlagEmoji(langCode);
           menuItems.add(_buildLanguageMenuItem(langCode, langName, flag));
         }
@@ -131,7 +131,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
         ));
 
         // Only show common downloadable languages
-        for (final entry in LanguageNames.shortLanguageNames.entries) {
+        for (final entry in LanguageCatalog.shortLanguageNames.entries) {
           if (!OcrProcessor.bundledLanguages.contains(entry.value)) {
             menuItems.add(_buildLanguageMenuItem(
               entry.value,

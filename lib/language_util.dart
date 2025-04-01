@@ -123,8 +123,8 @@ class LanguageUtil {
 
   // Get the display name from language code
   static String getDisplayName(String languageCode) {
-    // Reverse lookup in the supportedLanguages map
-    for (var entry in LanguageNames.supportedLanguages.entries) {
+    // Reverse lookup in the supportedLanguages map from LanguageNames class
+    for (var entry in LanguageCatalog.supportedLanguages.entries) {
       if (entry.value == languageCode) {
         return entry.key;
       }
@@ -133,8 +133,8 @@ class LanguageUtil {
   }
 }
 
-// Separate class to store just the language names
-class LanguageNames {
+// Rename to LanguageCatalog to avoid the conflict with language_names.dart
+class LanguageCatalog {
   // Full set of common languages
   static const Map<String, String> supportedLanguages = {
     'English': 'eng',

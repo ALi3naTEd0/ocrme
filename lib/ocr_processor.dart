@@ -10,9 +10,19 @@ import 'language_manager.dart';
 // Create a result class to hold both text and confidence score
 class OcrResult {
   final String text;
-  final double confidenceScore;
+  final double? confidenceScore;
+  final String? engine; // Track which OCR engine was used
+  final Map<String, dynamic>? metadata; // Additional data from OCR
 
-  OcrResult(this.text, this.confidenceScore);
+  OcrResult(this.text, this.confidenceScore,
+      {this.engine = 'tesseract', this.metadata});
+}
+
+// Define OCR Engine options
+enum OcrEngine {
+  tesseract, // Command-line Tesseract
+  mlKit, // Google ML Kit (will be used if available)
+  auto // Try multiple engines and combine results
 }
 
 class OcrProcessor {
@@ -20,6 +30,11 @@ class OcrProcessor {
   Map<String, dynamic> _config = {};
   String? _localTessdataDir;
   final LanguageManager _languageManager = LanguageManager();
+
+  // Use direct public fields instead of getters/setters for better code clarity
+  OcrEngine preferredEngine = OcrEngine.auto;
+  bool enableTextValidation = true;
+  bool enableMultipleEngines = true;
 
   // Expose language manager for settings page
   LanguageManager get languageManager => _languageManager;
@@ -251,7 +266,7 @@ class OcrProcessor {
 
   Future<void> setLanguage(String language) async {
     // Use both our focused list and the comprehensive list
-    if (LanguageNames.supportedLanguages.values.contains(language) ||
+    if (LanguageCatalog.supportedLanguages.values.contains(language) ||
         supportedLanguages.containsValue(language)) {
       // Check if language is available or needs download
       final bool isAvailable = await isLanguageAvailable(language);
@@ -314,102 +329,184 @@ class OcrProcessor {
         }
       }
 
-      // Create a temporary directory for output
-      final tempDir = await getTemporaryDirectory();
-      final outputBase = path.join(tempDir.path, 'ocr_output');
-
-      // Create config file with parameters
-      final configFile = File('${tempDir.path}/tesseract_config.txt');
-      await configFile.writeAsString('''
-preserve_interword_spaces ${_config["preserve_interword_spaces"] ?? "1"}
-''');
-
-      _logger.info('Using tessdata directory: $_localTessdataDir');
-
-      // TSV parameter for confidence scores - use outputBase directly
-      const tsvParam = 'tsv';
-
-      // Add language parameter to tesseract command with TSV output
-      final result = await Process.run('tesseract', [
-        imageFile.path,
-        outputBase,
-        '-l',
-        _currentLanguage,
-        '--tessdata-dir',
-        _localTessdataDir!,
-        '--psm',
-        _config["psm"] ?? "4",
-        configFile.path,
-        tsvParam, // Add TSV output
-      ]);
-
-      if (result.exitCode != 0) {
-        _logger.severe('Tesseract error: ${result.stderr}');
-        return OcrResult('Error: ${result.stderr}', 0.0);
-      }
-
-      // Read the output file
-      final outputFile = File('$outputBase.txt');
-      String text = '';
-      if (await outputFile.exists()) {
-        text = await outputFile.readAsString();
-        if (text.isEmpty) {
-          _logger.warning('OCR result is empty');
-          return OcrResult('No text found in image', 0.0);
-        }
-      } else {
-        _logger.warning('Output file not found');
-        return OcrResult('Error: Output file not generated', 0.0);
-      }
-
-      // Read the confidence file
-      final confidenceFile = File('$outputBase.tsv');
-      double avgConfidence = 0.0;
-      if (await confidenceFile.exists()) {
-        try {
-          final confidenceData = await confidenceFile.readAsString();
-          final lines = confidenceData
-              .split('\n')
-              .where((line) => line.trim().isNotEmpty)
-              .toList();
-
-          // Skip header row
-          if (lines.length > 1) {
-            double totalConfidence = 0.0;
-            int confCount = 0;
-
-            // Start from 1 to skip header
-            for (int i = 1; i < lines.length; i++) {
-              final columns = lines[i].split('\t');
-              if (columns.length > 10) {
-                // TSV has multiple columns, confidence is in column 10
-                final conf = double.tryParse(columns[10]) ?? 0.0;
-                if (conf > 0) {
-                  totalConfidence += conf;
-                  confCount++;
-                }
-              }
-            }
-
-            if (confCount > 0) {
-              avgConfidence = totalConfidence / confCount;
-            }
-          }
-        } catch (e) {
-          _logger.warning('Error reading confidence data: $e');
-        }
-      }
-
-      _logger
-          .info('OCR completed successfully with confidence: $avgConfidence%');
-      return OcrResult(text, avgConfidence);
+      // We'll just use Tesseract for now
+      return await _processWithTesseract(imageFile);
     } catch (e) {
       _logger.severe('OCR Error: $e');
-      return OcrResult('Error: ${e.toString()}', 0.0);
+      return OcrResult('Error: ${e.toString()}', null);
     }
   }
 
-  // Public method to synchronize language database with current bundled languages
+  Future<OcrResult> _processWithTesseract(File imageFile) async {
+    // Create a temporary directory for output
+    final tempDir = await getTemporaryDirectory();
+    final outputBase = path.join(tempDir.path, 'ocr_output');
+
+    // Create config file with parameters
+    final configFile = File('${tempDir.path}/tesseract_config.txt');
+    await configFile.writeAsString('''
+preserve_interword_spaces ${_config["preserve_interword_spaces"] ?? "1"}
+''');
+
+    _logger.info('Using tessdata directory: $_localTessdataDir');
+
+    // TSV parameter for confidence scores
+    const tsvParam = 'tsv';
+
+    // Add language parameter to tesseract command with TSV output
+    final result = await Process.run('tesseract', [
+      imageFile.path,
+      outputBase,
+      '-l',
+      _currentLanguage,
+      '--tessdata-dir',
+      _localTessdataDir!,
+      '--psm',
+      _config["psm"] ?? "4",
+      configFile.path,
+      tsvParam,
+    ]);
+
+    if (result.exitCode != 0) {
+      _logger.severe('Tesseract error: ${result.stderr}');
+      return OcrResult('Error: ${result.stderr}', 0.0);
+    }
+
+    // Read the output file
+    final outputFile = File('$outputBase.txt');
+    String text = '';
+    if (await outputFile.exists()) {
+      text = await outputFile.readAsString();
+      if (text.isEmpty) {
+        _logger.warning('OCR result is empty');
+        return OcrResult('No text found in image', null, engine: 'tesseract');
+      }
+    } else {
+      _logger.warning('Output file not found');
+      return OcrResult('Error: Output file not generated', null,
+          engine: 'tesseract');
+    }
+
+    // Read the confidence file
+    final confidenceFile = File('$outputBase.tsv');
+    double? confidenceScore;
+
+    if (await confidenceFile.exists()) {
+      confidenceScore = await _calculateConfidenceScore(confidenceFile);
+    }
+
+    // Validate the OCR result
+    if (enableTextValidation) {
+      text = _validateAndCorrectText(text);
+    }
+
+    return OcrResult(text, confidenceScore, engine: 'tesseract');
+  }
+
+  Future<double?> _calculateConfidenceScore(File confidenceFile) async {
+    try {
+      final confidenceData = await confidenceFile.readAsString();
+      final lines = confidenceData
+          .split('\n')
+          .where((line) => line.trim().isNotEmpty)
+          .toList();
+
+      // Skip header row
+      if (lines.length > 1) {
+        double totalConfidence = 0.0;
+        int confCount = 0;
+        List<double> confidences = [];
+
+        // Start from 1 to skip header
+        for (int i = 1; i < lines.length; i++) {
+          final columns = lines[i].split('\t');
+          if (columns.length > 10) {
+            double conf = double.tryParse(columns[10]) ?? 0.0;
+            if (conf <= 0 && columns.length > 8) {
+              conf = double.tryParse(columns[8]) ?? 0.0;
+            }
+            if (conf > 0) {
+              confidences.add(conf);
+              totalConfidence += conf;
+              confCount++;
+            }
+          }
+        }
+
+        if (confCount > 0) {
+          if (confidences.length > 5) {
+            confidences.sort();
+            double median;
+            if (confidences.length % 2 == 0) {
+              median = (confidences[confidences.length ~/ 2] +
+                      confidences[confidences.length ~/ 2 - 1]) /
+                  2;
+            } else {
+              median = confidences[confidences.length ~/ 2];
+            }
+
+            int q1Index = confidences.length ~/ 4;
+            int q3Index = confidences.length * 3 ~/ 4;
+            double q1 = confidences[q1Index];
+            double q3 = confidences[q3Index];
+            double iqr = q3 - q1;
+
+            double lowerBound = q1 - 1.5 * iqr;
+            double upperBound = q3 + 1.5 * iqr;
+
+            double filteredTotal = 0.0;
+            int filteredCount = 0;
+            for (final conf in confidences) {
+              if (conf >= lowerBound && conf <= upperBound) {
+                filteredTotal += conf;
+                filteredCount++;
+              }
+            }
+
+            if (filteredCount > 0) {
+              return filteredTotal / filteredCount;
+            } else {
+              return median;
+            }
+          } else {
+            return totalConfidence / confCount;
+          }
+        }
+      }
+    } catch (e) {
+      _logger.warning('Error processing confidence data: $e');
+    }
+    return null;
+  }
+
+  String _validateAndCorrectText(String text) {
+    if (text.isEmpty) return text;
+
+    Map<RegExp, String> commonErrors = {
+      RegExp(r'(\d)l(\d)'): r'$11$2',
+      RegExp(r'(\d)I(\d)'): r'$11$2',
+      RegExp(r'l(\d)'): r'1$1',
+      RegExp(r'O(\d)'): r'0$1',
+      RegExp(r'(\d)O'): r'$10',
+      RegExp(r'[^\x00-\x7F]+'): ' ',
+    };
+
+    String corrected = text;
+
+    commonErrors.forEach((pattern, replacement) {
+      corrected = corrected.replaceAll(pattern, replacement);
+    });
+
+    corrected = corrected.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    int changes = text.length - corrected.length;
+    if (changes.abs() > 0) {
+      _logger.info('Made $changes corrections to OCR text');
+    }
+
+    return corrected;
+  }
+
   Future<void> syncLanguages() async {
     await _languageManager.syncBundledLanguages();
   }
