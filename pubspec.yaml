@@ -1,0 +1,40 @@
+name: ocrme
+description: "A simple OCR application."
+publish_to: 'none'
+
+# Update the version here and it will be used in the Android build
+version: 0.1.0+1  # Format is [version name]+[version code]
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.2
+  image_picker: ^1.0.4
+  path_provider: ^2.0.15
+  flutter_dropzone: ^3.0.6
+  desktop_drop: ^0.4.4
+  logging: ^1.2.0
+  path: ^1.8.3
+  flutter_svg: ^2.0.7
+  shared_preferences: ^2.2.0
+  http: ^1.1.0
+  sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0  # Add this for desktop support
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/logo.svg
+    - assets/logo_mobile.svg
+    - assets/tessdata_config.json
+    # Only include essential language files for a super light app
+    - assets/tessdata/eng.traineddata
+    - assets/tessdata/spa.traineddata

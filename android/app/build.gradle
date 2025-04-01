@@ -1,0 +1,99 @@
+// Plugin definitions
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+// Keystore properties setup
+def keystorePropertiesFile = rootProject.file('key.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    try {
+        keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+        println "Keystore properties loaded successfully"
+    } catch (Exception e) {
+        println "Error loading key.properties: ${e.message}"
+    }
+} else {
+    println "Warning: key.properties file not found!"
+}
+
+// Android configuration
+android {
+    // Application namespace
+    namespace = "com.ali3nated0.ocrme"
+    
+    // SDK versions
+    compileSdkVersion flutter.compileSdkVersion
+    ndkVersion "25.1.8937393"
+
+    // Java compatibility settings
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    // Kotlin settings
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    // Source directories
+    sourceSets {
+        main.java.srcDirs += 'src/main/kotlin'
+    }
+
+    // Application configuration
+    defaultConfig {
+        // Package identifier (should match the one in AndroidManifest.xml)
+        applicationId "com.ali3nated0.ocrme"
+        
+        // SDK versions
+        minSdkVersion 21 // Set to 21 for better device compatibility
+        targetSdkVersion flutter.targetSdkVersion
+        
+        // App versioning
+        versionCode 2
+        versionName "0.1.0-1"
+        
+        // App display name
+        resValue "string", "app_name", "OCRMe"
+    }
+
+    // Signing configurations
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            release {
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+                storeFile file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+            }
+        }
+    }
+
+    // Build configurations
+    buildTypes {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            } else {
+                signingConfig signingConfigs.debug
+            }
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+
+// Flutter configuration
+flutter {
+    source = "../.."
+}
+
+// Dependencies
+dependencies {
+    // Uncomment the line below to use Tesseract OCR
+    // implementation 'com.rmtheis:tess-two:9.1.0'
+}
