@@ -1,44 +1,120 @@
 # OCRMe
 
-A cross-platform OCR application built with Flutter.
+<div align="center">
+  <img src="assets/logo.svg" alt="OCRMe Logo" width="150">
+  <h3>Extract text from images with ease.</h3>
+  <p>A cross-platform OCR application with support for multiple languages.</p>
+</div>
 
-## Getting Started
+<div align="center">
 
-This project is a starting point for a Flutter application.
+[![Release](https://img.shields.io/github/v/release/ALi3naTEd0/OCRMe?style=for-the-badge)](https://github.com/ALi3naTEd0/OCRMe/releases/latest)
+[![License](https://img.shields.io/github/license/ALi3naTEd0/OCRMe?style=for-the-badge)](LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-3.29.1-blue?style=for-the-badge&logo=flutter)](https://flutter.dev/)
+[![Tesseract](https://img.shields.io/badge/Tesseract-OCR-orange?style=for-the-badge)](https://github.com/tesseract-ocr/tesseract)
 
-A few resources to get you started if this is your first Flutter project:
+</div>
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## 📝 Overview
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+OCRMe is a modern, cross-platform application that extracts text from images using Optical Character Recognition (OCR) technology. Built with Flutter and powered by Tesseract OCR, it provides an intuitive interface for converting printed or handwritten text in images into editable, digital text.
 
-## Language System
+<div align="center">
+  <img src="docs/screenshots/ocrme_demo.gif" alt="OCRMe Demo" width="700">
+</div>
 
-OCRMe uses a smart language management system to keep the app size small while providing support for many languages:
+## ✨ Features
+
+- 🖼️ **Image to Text**: Extract text from photos, screenshots, PDFs and documents
+- 🌐 **Multi-language Support**: Process text in 100+ languages 
+- 💾 **Automatic Saving**: Save recognized text automatically or manually
+- 📊 **Confidence Scoring**: View accuracy rating for OCR results
+- 🔄 **Text Correction**: Intelligent auto-correction of common OCR errors
+- ⚡ **Offline Processing**: All OCR happens locally on your device
+- 📱 **Cross Platform**: Works on Android, Windows, macOS, and Linux
+
+## 📥 Installation
+
+### Android
+
+Download and install the APK for your device architecture:
+
+- [Universal APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.apk)
+- [ARM64-v8a APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_arm64-v8a.apk) (most modern phones)
+- [ARMv7 APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_armeabi-v7a.apk)
+- [x86_64 APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_x86_64.apk)
+
+### Windows
+
+Two options available:
+
+- [Installer (recommended)](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.exe): Run the installer and follow the prompts
+- [Portable ZIP](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_portable.zip): Extract and run `ocrme.exe`
+
+### macOS
+
+First, install Tesseract using Homebrew:
+```bash
+brew install tesseract
+```
+
+Then, download and install the app:
+- [DMG Installer](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.dmg)
+- [ZIP Archive](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_macOS.zip)
+
+### Linux
+
+All Linux packages require Tesseract OCR to be installed:
+
+```bash
+# Debian/Ubuntu
+sudo apt install tesseract-ocr
+
+# Fedora
+sudo dnf install tesseract
+
+# Arch Linux
+sudo pacman -S tesseract
+```
+
+Choose your preferred package format:
+- [AppImage](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.AppImage): Make executable with `chmod +x OCRMe_0.1.0-1.AppImage` and run
+- [DEB Package](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_amd64.deb): `sudo dpkg -i OCRMe_0.1.0-1_amd64.deb`
+- [RPM Package](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_x86_64.rpm): `sudo rpm -i OCRMe_0.1.0-1_x86_64.rpm`
+- [Flatpak](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.flatpak): `flatpak install OCRMe_0.1.0-1.flatpak`
+- [TAR Archive](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_linux_x64.tar.gz): Extract and run `./ocrme`
+
+## 📚 Language System
+
+OCRMe uses a smart language management system:
 
 ### Pre-installed Languages
-
 The app comes with 2 core languages pre-installed to keep it lightweight:
 - English (eng)
 - Spanish (spa)
 
-These languages are immediately available without downloading additional files.
-
 ### Downloadable Languages
-
 When you select a language that isn't pre-installed, OCRMe will:
 1. Prompt you to download the language data file
 2. Retrieve the file from the official Tesseract GitHub repository
 3. Save it locally for future use
 
-After downloading, the language becomes available for OCR processing just like the pre-installed languages.
+<div align="center">
+  <img src="docs/screenshots/language_manager.png" alt="Language Manager" width="600">
+</div>
 
-## Technical Details
+## 🖼️ Screenshots
 
-- Language files are stored in the application's support directory
-- Downloaded languages are tracked using SQLite for persistent storage
-- Languages can be deleted and reinstalled as needed to manage storage space
-- The app uses the `tessdata_fast` versions of language files for faster download and processing
+<div align="center">
+  <img src="docs/screenshots/main_screen.png" alt="Main Screen" width="300">
+  <img src="docs/screenshots/result_screen.png" alt="Result Screen" width="300">
+  <img src="docs/screenshots/settings_screen.png" alt="Settings Screen" width="300">
+</div>
+
+## 🛠️ Development
+
+### Prerequisites
+
+1. Install [Flutter](https://docs.flutter.dev/get-started/install) (v3.29.1 or higher)
+2. Install [Tesseract OCR](https://github.com/tesseract-ocr/tesseract)
+3. Clone this repository:
