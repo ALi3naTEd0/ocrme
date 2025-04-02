@@ -252,10 +252,17 @@ jobs:
           echo "Running docs update because:"
           echo "Event type: ${{ github.event_name }}"
           echo "Release type: ${{ github.event.inputs.release_type }}"
+          echo "This step should ONLY run for 'release' type, not 'draft'"
+
+      - name: Debug Release Type
+        run: |
+          echo "Release type: ${{ github.event.inputs.release_type }}"
+          echo "Version: ${{ needs.create-release.outputs.version }}"
           
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
@@ -264,56 +271,138 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Update Documentation
+        id: update-docs
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
           TODAY=$(date +"%Y-%m-%d")
+          echo "Updating documentation for version: ${VERSION}"
           
-          # Update version numbers in README where they exist
-          if [ -f "README.md" ]; then
-            # Various version pattern replacements
-            sed -i "s|/download/v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/|/download/v${VERSION}/|g" README.md
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.exe|OCRMe_${VERSION}.exe|g" README.md
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.dmg|OCRMe_${VERSION}.dmg|g" README.md
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.AppImage|OCRMe_${VERSION}.AppImage|g" README.md
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_amd64\.deb|OCRMe_${VERSION}_amd64.deb|g" README.md
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_x86_64\.rpm|OCRMe_${VERSION}_x86_64.rpm|g" README.md
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.flatpak|OCRMe_${VERSION}.flatpak|g" README.md
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_portable\.zip|OCRMe_${VERSION}_portable.zip|g" README.md
+          # Debug: Show current documentation version references
+          echo "Current version references in README.md:"
+          grep -o "OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+" README.md || echo "No OCRMe version references found"
+          
+          # Update version numbers in README
+          echo "Updating version numbers in README.md..."
+          sed -i "s|/download/v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/|/download/v${VERSION}/|g" README.md
+          
+          # First update all file patterns in README with the specific OCRMe naming
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.exe|OCRMe_${VERSION}.exe|g" README.md
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.dmg|OCRMe_${VERSION}.dmg|g" README.md
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.AppImage|OCRMe_${VERSION}.AppImage|g" README.md
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_amd64\.deb|OCRMe_${VERSION}_amd64.deb|g" README.md
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_x86_64\.rpm|OCRMe_${VERSION}_x86_64.rpm|g" README.md
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.flatpak|OCRMe_${VERSION}.flatpak|g" README.md
+          
+          # Update Linux tarball specifically
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_linux_x64\.tar\.gz|OCRMe_${VERSION}_linux_x64.tar.gz|g" README.md
+          
+          # Update the portable ZIP format in README
+          sed -i "s|OCRMe-portable\.zip|OCRMe_${VERSION}_portable.zip|g" README.md
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_portable\.zip|OCRMe_${VERSION}_portable.zip|g" README.md
+          
+          # Explicitly update Android APKs
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.apk|OCRMe_${VERSION}.apk|g" README.md
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_arm64-v8a\.apk|OCRMe_${VERSION}_arm64-v8a.apk|g" README.md
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_armeabi-v7a\.apk|OCRMe_${VERSION}_armeabi-v7a.apk|g" README.md
+          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_x86_64\.apk|OCRMe_${VERSION}_x86_64.apk|g" README.md
+          
+          # Check if changes were made to README.md
+          if git diff --quiet README.md; then
+            echo "::warning::No changes detected in README.md"
+            echo "readme_changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "README.md was updated with new version ${VERSION}"
+            echo "readme_changed=true" >> "$GITHUB_OUTPUT"
+            git add README.md
           fi
           
-          # Update CHANGELOG if it exists
+          # Update CHANGELOG.md - Move Unreleased to new version
+          echo "Updating CHANGELOG.md for version ${VERSION}..."
           if [ -f "CHANGELOG.md" ]; then
             sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [${VERSION}] - ${TODAY}/" CHANGELOG.md
+            if git diff --quiet CHANGELOG.md; then
+              echo "::warning::No changes detected in CHANGELOG.md"
+              echo "changelog_changed=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "CHANGELOG.md was updated with new version ${VERSION}"
+              echo "changelog_changed=true" >> "$GITHUB_OUTPUT"
+              git add CHANGELOG.md
+            fi
+          else
+            echo "::warning::CHANGELOG.md not found, skipping changelog update"
           fi
           
-          # Update website version (similar to RateMe workflow)
-          if [ -d "website" ]; then
-            if [ -f "website/index.html" ]; then
-              # Update version in index.html
-              sed -i "s/OCRMe v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/OCRMe v${VERSION}/g" website/index.html
-              # Update download links
-              sed -i "s/OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/OCRMe_${VERSION}/g" website/index.html
+          # Update website files in docs directory (like RateMe does)
+          if [ -d "docs" ]; then
+            echo "Found 'docs' directory, updating website files..."
+            
+            # Check for index.html
+            if [ -f "docs/index.html" ]; then
+              # Debug: Show current version references
+              echo "Current version references in docs/index.html:"
+              grep -o "OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+" docs/index.html || echo "No version references found"
+              
+              # Update all version references in index.html
+              echo "Updating docs/index.html..."
+              sed -i "s|/releases/download/v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/|/releases/download/v${VERSION}/|g" docs/index.html
+              sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.exe|OCRMe_${VERSION}.exe|g" docs/index.html
+              sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.dmg|OCRMe_${VERSION}.dmg|g" docs/index.html
+              sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.AppImage|OCRMe_${VERSION}.AppImage|g" docs/index.html
+              sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_amd64\.deb|OCRMe_${VERSION}_amd64.deb|g" docs/index.html
+              sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_x86_64\.rpm|OCRMe_${VERSION}_x86_64.rpm|g" docs/index.html
+              sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.flatpak|OCRMe_${VERSION}.flatpak|g" docs/index.html
+              sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_linux_x64\.tar\.gz|OCRMe_${VERSION}_linux_x64.tar.gz|g" docs/index.html
+              sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.apk|OCRMe_${VERSION}.apk|g" docs/index.html
+              sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_portable\.zip|OCRMe_${VERSION}_portable.zip|g" docs/index.html
+              
+              # Update version numbers in JS
+              sed -i "s|Version [0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+|Version ${VERSION}|g" docs/index.html
+              sed -i "s|version: ['\"][0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+[\"']|version: '${VERSION}'|g" docs/index.html
+              sed -i "s|version = '[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+'|version = '${VERSION}'|g" docs/index.html
+              sed -i "s|document.getElementById('version').textContent = '[0-9.]\+-[0-9]\+'|document.getElementById('version').textContent = '${VERSION}'|g" docs/index.html
+              
+              if git diff --quiet docs/index.html; then
+                echo "::warning::No changes detected in docs/index.html"
+                echo "website_index_changed=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "docs/index.html was updated with new version ${VERSION}"
+                echo "website_index_changed=true" >> "$GITHUB_OUTPUT"
+                git add docs/index.html
+              fi
+            else
+              echo "::warning::docs/index.html not found, skipping website update"
             fi
-
-            if [ -f "website/download.html" ]; then
-              # Update version in download.html
-              sed -i "s/OCRMe v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/OCRMe v${VERSION}/g" website/download.html
-              # Update download links
-              sed -i "s/OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/OCRMe_${VERSION}/g" website/download.html
-              # Update release date
-              sed -i "s/Released: [0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}/Released: ${TODAY}/g" website/download.html
+          else
+            echo "::warning::Docs directory not found, checking for website directory instead"
+            
+            # Also check for website directory as fallback
+            if [ -d "website" ]; then
+              echo "Found 'website' directory, updating website files..."
+              
+              # Check for index.html in website directory
+              if [ -f "website/index.html" ]; then
+                echo "Updating website/index.html..."
+                sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+|OCRMe_${VERSION}|g" website/index.html
+                sed -i "s|Version [0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+|Version ${VERSION}|g" website/index.html
+                
+                if git diff --quiet website/index.html; then
+                  echo "::warning::No changes detected in website/index.html"
+                else
+                  echo "website/index.html was updated with new version ${VERSION}"
+                  git add website/index.html
+                fi
+              fi
             fi
           fi
           
-          # Commit changes if any
-          if git diff --quiet; then
+          # Commit changes if any files were modified
+          if git diff --staged --quiet; then
             echo "No changes to commit"
-            exit 0
+          else
+            git commit -m "docs: update documentation to version ${VERSION}"
+            git push origin main
+            echo "Documentation updated successfully"
           fi
-          
-          git add -A
-          git commit -m "docs: update documentation for version ${VERSION}"
-          git push origin HEAD:main
 
   # STEP 4: DEPLOY WEBSITE - Update and deploy website with new version
   deploy-website:
