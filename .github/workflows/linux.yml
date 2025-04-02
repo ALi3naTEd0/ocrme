@@ -39,7 +39,8 @@ jobs:
             libfuse2 \
             tesseract-ocr \
             tesseract-ocr-eng \
-            tesseract-ocr-spa
+            tesseract-ocr-spa \
+            imagemagick # Add ImageMagick to the dependencies
           
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
