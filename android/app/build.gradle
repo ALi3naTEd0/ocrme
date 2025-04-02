@@ -24,9 +24,11 @@ android {
     // Application namespace
     namespace = "com.ali3nated0.ocrme"
     
+    // Update to latest NDK version (they are backward compatible)
+    ndkVersion "27.0.12077973"
+    
     // SDK versions
     compileSdkVersion flutter.compileSdkVersion
-    ndkVersion "25.2.9519653"
 
     // Java compatibility settings
     compileOptions {

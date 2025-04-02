@@ -7,13 +7,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as path;
 import 'ocr_processor.dart';
 import 'unified_drop_zone.dart';
 import 'custom_app_bar.dart';
 import 'language_util.dart';
 import 'settings_page.dart';
+import 'utils/platform_permissions.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -105,17 +105,8 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future<void> _checkPermissions() async {
-    if (Platform.isAndroid) {
-      try {
-        // Request camera and storage permissions on Android
-        await [
-          Permission.camera,
-          Permission.storage,
-        ].request();
-      } catch (e) {
-        _logger.warning('Error requesting permissions: $e');
-      }
-    }
+    // Use the cross-platform permissions helper
+    await PlatformPermissions.requestPermissions();
   }
 
   Future<void> _initializeOutputDirectory() async {
