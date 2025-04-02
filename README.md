@@ -39,10 +39,10 @@ OCRMe is a modern, cross-platform application that extracts text from images usi
 
 Download and install the APK for your device architecture:
 
-- [Universal APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.apk)
-- [ARM64-v8a APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_arm64-v8a.apk) (most modern phones)
-- [ARMv7 APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_armeabi-v7a.apk)
-- [x86_64 APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_x86_64.apk)
+- [Universal APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2.apk)
+- [ARM64-v8a APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2_arm64-v8a.apk) (most modern phones)
+- [ARMv7 APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2_armeabi-v7a.apk)
+- [x86_64 APK](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2_x86_64.apk)
 
 ### Windows
 
@@ -60,7 +60,6 @@ brew install tesseract
 
 Then, download and install the app:
 - [DMG Installer](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2.dmg)
-- [ZIP Archive](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_macOS.zip)
 
 ### Linux
 
@@ -82,7 +81,7 @@ Choose your preferred package format:
 - [DEB Package](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2_amd64.deb): `sudo dpkg -i OCRMe_0.1.0-2_amd64.deb`
 - [RPM Package](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2_x86_64.rpm): `sudo rpm -i OCRMe_0.1.0-2_x86_64.rpm`
 - [Flatpak](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2.flatpak): `flatpak install OCRMe_0.1.0-2.flatpak`
-- [TAR Archive](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_linux_x64.tar.gz): Extract and run `./ocrme`
+- [TAR Archive](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2_linux_x64.tar.gz): Extract and run `./ocrme`
 
 ## 📚 Language System
 
