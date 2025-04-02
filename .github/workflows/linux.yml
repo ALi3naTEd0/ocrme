@@ -41,8 +41,29 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
+          cache: true # Enable Flutter caching
+
+      # Add pub dependencies cache
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool/
+          key: pub-dependencies-linux-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-dependencies-linux-${{ runner.os }}-
+      
+      # Cache tessdata files
+      - name: Cache Tessdata Files
+        id: cache-tessdata
+        uses: actions/cache@v4
+        with:
+          path: assets/tessdata
+          key: tessdata-linux-${{ hashFiles('pubspec.yaml') }}
 
       - name: Download essential language files
+        if: steps.cache-tessdata.outputs.cache-hit != 'true'
         run: |
           mkdir -p assets/tessdata
           # English and Spanish are the core languages for OCRMe
@@ -52,8 +73,11 @@ jobs:
       - name: Enable Linux
         run: flutter config --enable-linux-desktop
 
+      - name: Install Flutter dependencies
+        run: flutter pub get
+
       - name: Build
-        run: flutter build linux --release
+        run: flutter build linux --release --no-pub
 
       # AppImage build
       - name: Create AppImage Structure

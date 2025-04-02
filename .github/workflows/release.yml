@@ -114,10 +114,22 @@ jobs:
       - name: Create Release Notes
         id: create_release_notes
         run: |
+          # Extract release notes from CHANGELOG.md or use default message
+          if [ -f "CHANGELOG.md" ]; then
+            # Get content between ## [Unreleased] and next ##
+            notes=$(awk '/^## \[Unreleased\]/{flag=1;next}/^## /{if(flag==1)exit}flag' CHANGELOG.md)
+            if [ -z "$notes" ]; then
+              notes="OCR application for extracting text from images."
+            fi
+          else
+            notes="OCR application for extracting text from images."
+          fi
+          
+          # Create full release notes with template
           cat > release_notes.md << EOF
           # OCRMe ${{ steps.get_version.outputs.VERSION }}
           
-          OCR application for extracting text from images.
+          $notes
           
           ## Key Features
           - Clean, modern UI
@@ -140,37 +152,14 @@ jobs:
           
           ### macOS
           - Download the .dmg file
-          - Open it and drag OCRMe to your Applications folder
-          - Tesseract OCR must be installed: brew install tesseract
-          
-          ### Linux
-          Choose one of the options:
-          - AppImage: Download, make executable (\`chmod +x OCRMe_*.AppImage\`) and run
-          - DEB package: Install with \`sudo dpkg -i OCRMe_*.deb\`
-          - RPM package: Install with \`sudo rpm -i OCRMe_*.rpm\`
-          - Flatpak: Install with \`flatpak install OCRMe_*.flatpak\`
-          - TAR archive: Extract and run \`./ocrme\`
-          
-          ## Required Dependencies
-          - For Linux & macOS: Tesseract OCR should be installed on your system
           EOF
           
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          cat release_notes.md >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "NOTES_PATH=release_notes.md" >> "$GITHUB_OUTPUT"
 
       - name: Create Dist Directory
         run: mkdir -p dist
 
-      # Add debug steps to see what artifacts are available
-      - name: List Available Artifacts
-        run: |
-          echo "Available artifacts:"
-          gh api /repos/${{ github.repository }}/actions/artifacts \
-            --jq '.artifacts[] | {name: .name, size: .size_in_bytes, created: .created_at}'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+      # Optimize artifacts download with pattern and merge
       - name: Download Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -180,33 +169,20 @@ jobs:
 
       - name: Debug Directory Contents
         run: |
-          echo "Root directory:"
-          ls -la
-          echo "Dist directory content:"
           ls -la dist/ || echo "Dist directory is empty or doesn't exist"
 
-      - name: Organize Artifacts
-        run: |
-          echo "Initial dist content:"
-          ls -la dist/
-          
-          # Move nested files to root of dist/
-          find dist -mindepth 2 -type f -exec mv -t dist/ {} +
-          find dist -type d -empty -delete
-          
-          echo "Final dist content:"
-          ls -lh dist/
-
+      # Create release with proper notes and artifacts
       - name: Create Release and Upload Assets
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref }}
-          name: OCRMe v${{ steps.get_version.outputs.VERSION }}
-          body_path: release_notes.md
-          files: dist/**/*
+          name: OCRMe ${{ steps.get_version.outputs.VERSION }}
+          body_path: ${{ steps.create_release_notes.outputs.NOTES_PATH }}
           draft: ${{ github.event.inputs.release_type == 'draft' }}
           prerelease: false
+          files: |
+            dist/*
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -221,12 +197,6 @@ jobs:
           RELEASE_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/tag/${TAG_NAME}"
           echo "Setting release URL to: $RELEASE_URL"
           echo "url=$RELEASE_URL" >> "$GITHUB_OUTPUT"
-          
-      - name: Debug Release Info
-        run: |
-          echo "Release created successfully:"
-          echo "Version: ${{ steps.get_version.outputs.VERSION }}"
-          echo "URL: ${{ steps.set_release_url.outputs.url }}"
 
   # STEP 3: UPDATE DOCUMENTATION - Update docs with new version links
   update-docs:
@@ -242,17 +212,10 @@ jobs:
           echo "Running docs update because:"
           echo "Event type: ${{ github.event_name }}"
           echo "Release type: ${{ github.event.inputs.release_type }}"
-          echo "This step should ONLY run for 'release' type, not 'draft'"
-
-      - name: Debug Release Type
-        run: |
-          echo "Release type: ${{ github.event.inputs.release_type }}"
-          echo "Version: ${{ needs.create-release.outputs.version }}"
           
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: main
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
@@ -261,95 +224,34 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
       - name: Update Documentation
-        id: update-docs
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
           TODAY=$(date +"%Y-%m-%d")
-          echo "Updating documentation for version: ${VERSION}"
           
-          # Debug: Show current documentation version references
-          echo "Current version references in README.md:"
-          grep -o "OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+" README.md | sort | uniq
-          
-          # Update version numbers in README
-          echo "Updating version numbers in README.md..."
-          sed -i "s|/download/v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/|/download/v${VERSION}/|g" README.md
-          
-          # First update all file patterns in README, including APK files specifically
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.exe|OCRMe_${VERSION}.exe|g" README.md
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.dmg|OCRMe_${VERSION}.dmg|g" README.md
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.AppImage|OCRMe_${VERSION}.AppImage|g" README.md
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_amd64\.deb|OCRMe_${VERSION}_amd64.deb|g" README.md
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_x86_64\.rpm|OCRMe_${VERSION}_x86_64.rpm|g" README.md
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.flatpak|OCRMe_${VERSION}.flatpak|g" README.md
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.tar\.gz|OCRMe_${VERSION}.tar.gz|g" README.md
-          
-          # Update the portable ZIP format in README
-          sed -i "s|OCRMe-portable\.zip|OCRMe_${VERSION}_portable.zip|g" README.md
-          
-          # Also update any existing portable zip with version format
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_portable\.zip|OCRMe_${VERSION}_portable.zip|g" README.md
-          
-          # Explicitly update Android APKs
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.apk|OCRMe_${VERSION}.apk|g" README.md
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_arm64-v8a\.apk|OCRMe_${VERSION}_arm64-v8a.apk|g" README.md
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_armeabi-v7a\.apk|OCRMe_${VERSION}_armeabi-v7a.apk|g" README.md
-          sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_x86_64\.apk|OCRMe_${VERSION}_x86_64.apk|g" README.md
-          
-          # Check if changes were made
-          if git diff --quiet README.md; then
-            echo "::warning::No changes detected in README.md"
-            echo "readme_changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "README.md was updated with new version ${VERSION}"
-            echo "readme_changed=true" >> "$GITHUB_OUTPUT"
-            git add README.md
+          # Update version numbers in README where they exist
+          if [ -f "README.md" ]; then
+            # Various version pattern replacements
+            sed -i "s|/download/v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/|/download/v${VERSION}/|g" README.md
+            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.exe|OCRMe_${VERSION}.exe|g" README.md
+            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.dmg|OCRMe_${VERSION}.dmg|g" README.md
+            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.AppImage|OCRMe_${VERSION}.AppImage|g" README.md
+            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_amd64\.deb|OCRMe_${VERSION}_amd64.deb|g" README.md
+            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_x86_64\.rpm|OCRMe_${VERSION}_x86_64.rpm|g" README.md
+            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.flatpak|OCRMe_${VERSION}.flatpak|g" README.md
+            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_portable\.zip|OCRMe_${VERSION}_portable.zip|g" README.md
           fi
           
-          # Only continue with website if docs directory exists
-          if [ -d "docs" ]; then
-            cd docs
-            
-            # Debug: Show current website version references
-            echo "Current version references in index.html:"
-            grep -o "OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+" index.html | sort | uniq
-            
-            # Update all version references
-            echo "Updating website for version ${VERSION}..."
-            sed -i "s|/releases/download/v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/|/releases/download/v${VERSION}/|g" index.html
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.exe|OCRMe_${VERSION}.exe|g" index.html
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.dmg|OCRMe_${VERSION}.dmg|g" index.html
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.AppImage|OCRMe_${VERSION}.AppImage|g" index.html
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_amd64\.deb|OCRMe_${VERSION}_amd64.deb|g" index.html
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_x86_64\.rpm|OCRMe_${VERSION}_x86_64.rpm|g" index.html
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.flatpak|OCRMe_${VERSION}.flatpak|g" index.html
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.tar\.gz|OCRMe_${VERSION}.tar.gz|g" index.html
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\.apk|OCRMe_${VERSION}.apk|g" index.html
-            sed -i "s|Version [0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+|Version ${VERSION}|g" index.html
-            sed -i "s|\"version\": \"[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+\"|\"version\": \"${VERSION}\"|g" index.html
-            sed -i "s|document.getElementById('current-version').textContent = '[0-9.]\+-[0-9]\+'|document.getElementById('current-version').textContent = '${VERSION}'|g" index.html
-            
-            # Also update portable zip specifically in website
-            sed -i "s|OCRMe-portable\.zip|OCRMe_${VERSION}_portable.zip|g" index.html
-            sed -i "s|OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+_portable\.zip|OCRMe_${VERSION}_portable.zip|g" index.html
-            
-            if git diff --quiet index.html; then
-              echo "::warning::No changes detected in website"
-              echo "website_changed=false" >> "$GITHUB_OUTPUT"
-            else
-              echo "Website was updated with new version ${VERSION}"
-              echo "website_changed=true" >> "$GITHUB_OUTPUT"
-              git add index.html
-            fi
-          else
-            echo "::warning::Docs directory not found, skipping website update"
+          # Update CHANGELOG if it exists
+          if [ -f "CHANGELOG.md" ]; then
+            sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [${VERSION}] - ${TODAY}/" CHANGELOG.md
           fi
           
-          # Commit changes if any files were modified
-          if git diff --staged --quiet; then
+          # Commit changes if any
+          if git diff --quiet; then
             echo "No changes to commit"
-          else
-            git commit -m "docs: update documentation to version ${VERSION}"
-            git push origin main
-            echo "Documentation updated successfully"
+            exit 0
           fi
+          
+          git add -A
+          git commit -m "docs: update documentation for version ${VERSION}"
+          git push origin HEAD:main

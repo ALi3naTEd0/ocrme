@@ -27,7 +27,7 @@ jobs:
         with:
           flutter-version: '3.29.1'
           channel: 'stable'
-          cache: true # Enable Flutter caching
+          cache: true # Add caching for better performance
         env:
           LANG: en_US.UTF-8
 
@@ -94,6 +94,7 @@ jobs:
               exit 1
           }
 
+      # Cache tessdata files
       - name: Download Tessdata
         shell: pwsh
         id: cache-tessdata
@@ -129,6 +130,7 @@ jobs:
               Write-Host "Tessdata files verified"
           }
 
+      # Install dependencies first to improve build performance
       - name: Install Flutter dependencies
         run: flutter pub get
 
@@ -136,7 +138,7 @@ jobs:
         run: flutter config --enable-windows-desktop
 
       - name: Build Windows
-        run: flutter build windows --release --no-pub
+        run: flutter build windows --release --no-pub # Add --no-pub flag for better performance
 
       - name: Create Portable ZIP
         shell: pwsh
