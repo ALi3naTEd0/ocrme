@@ -167,6 +167,10 @@ jobs:
           
           ### macOS
           - Download the .dmg file
+          
+          ### Linux
+          - Download the AppImage for a portable, clickable executable
+          - Or use the .deb, .rpm, or Flatpak packages for system integration
           EOF
           
           echo "NOTES_PATH=release_notes.md" >> "$GITHUB_OUTPUT"

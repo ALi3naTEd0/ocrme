@@ -76,25 +76,17 @@ jobs:
           curl -L -o assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
           curl -L -o assets/tessdata/spa.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
 
-      # Ensure a logo file exists for the build
-      - name: Prepare Logo File
+      # Verify logo file
+      - name: Verify Logo File
         run: |
-          mkdir -p assets
-          # Try to download the logo if it's not already there
+          # Just verify the logo exists
           if [ ! -f "assets/logo.png" ]; then
-            echo "Downloading logo..."
-            curl -L -o assets/logo.png https://raw.githubusercontent.com/ALi3naTEd0/ocrme/main/assets/logo.png || {
-              echo "Failed to download logo, creating placeholder"
-              # Create a simple placeholder without using heredoc
-              convert -size 512x512 xc:#6A11CB -gravity center -pointsize 48 -fill white \
-                 -annotate 0 "OCRMe" assets/logo.png
-            }
-          fi
-          
-          # Always ensure we have the file
-          if [ ! -f "assets/logo.png" ]; then
-            echo "Critical error: Could not create logo file"
-            exit 1
+            echo "Warning: logo.png not found in assets directory!"
+            # Create assets directory if it doesn't exist
+            mkdir -p assets
+            # Create a simple placeholder
+            convert -size 512x512 xc:#6A11CB -gravity center -pointsize 48 -fill white \
+               -annotate 0 "OCRMe" assets/logo.png
           fi
 
       - name: Enable Linux

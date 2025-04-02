@@ -48,14 +48,8 @@ jobs:
           # Install ImageMagick first
           brew install imagemagick
           
-          # Ensure we have the logo files
+          # We already have the logo file in assets - no need to create a placeholder
           mkdir -p assets
-          if [ ! -f "assets/logo.svg" ]; then
-            echo "Logo file not found. Creating a placeholder..."
-            # Create a simple placeholder icon if needed
-            convert -size 1024x1024 xc:transparent -fill "#6A11CB" -draw "rectangle 100,100 924,924" \
-                    -fill white -pointsize 200 -gravity center -annotate 0 "OCR" assets/logo.png
-          fi
 
       # Cache tessdata files
       - name: Cache Tessdata Files

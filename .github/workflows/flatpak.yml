@@ -99,34 +99,12 @@ jobs:
           # Build Flutter app with --no-pub for efficiency
           flutter build linux --release --no-pub
           
-          # Prepare icons - create a square icon from our logo
+          # Prepare icons - create icon directly from our logo.png file
           mkdir -p icons
           
-          # Create a proper square icon for Flatpak
-          convert -size 512x512 xc:"#6A11CB" icons/bg.png
-          
-          # Get dimensions of the logo file
-          if [ -f "assets/logo.png" ]; then
-            convert assets/logo.png -resize 400x -background none icons/logo_resized.png
-          elif [ -f "assets/logo.svg" ]; then
-            convert assets/logo.svg -resize 400x -background none icons/logo_resized.png
-          else
-            echo "Warning: No logo file found, creating placeholder..."
-            convert -size 400x200 xc:"#ffffff" -fill "#000000" -gravity center -annotate 0 "OCRMe" icons/logo_resized.png
-          fi
-          
-          # Center the logo on the background
-          # Get dimensions
-          LOGO_WIDTH=$(identify -format "%w" icons/logo_resized.png)
-          LOGO_HEIGHT=$(identify -format "%h" icons/logo_resized.png)
-          
-          # Calculate position
-          X_OFFSET=$(( (512 - LOGO_WIDTH) / 2 ))
-          Y_OFFSET=$(( (512 - LOGO_HEIGHT) / 2 ))
-          
-          # Composite the images
-          convert icons/bg.png icons/logo_resized.png -geometry +${X_OFFSET}+${Y_OFFSET} -composite icons/com.ali3nated0.ocrme.png
-          
+          # Convert existing logo.png to square icon for Flatpak
+          convert assets/logo.png -resize 512x512 icons/com.ali3nated0.ocrme.png
+
           # Copy files to build directory
           rm -rf flatpak-build
           mkdir -p flatpak-build

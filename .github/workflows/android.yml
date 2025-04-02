@@ -74,16 +74,12 @@ jobs:
           path: assets/tessdata
           key: tessdata-${{ hashFiles('**/pubspec.yaml') }}
 
-      - name: Download Icons & Tessdata
+      - name: Download Tessdata
         if: steps.cache-tessdata.outputs.cache-hit != 'true'
         run: |
-          mkdir -p assets
           mkdir -p assets/tessdata
           
-          # Download logo directly from GitHub
-          curl -o assets/logo.png https://raw.githubusercontent.com/ALi3naTEd0/ocrme/main/assets/logo.png
-          
-          # Download essential language files
+          # Download essential language files (logo.png already exists in repo)
           curl -L -o assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
           curl -L -o assets/tessdata/spa.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
       
