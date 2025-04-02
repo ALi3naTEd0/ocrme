@@ -117,11 +117,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG_NAME="${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref }}"
-          # Check if release exists
+          # Check if release exists using jq to handle the error case properly
           RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/$TAG_NAME --jq '.id' 2>/dev/null || echo "")
-          if [ ! -z "$RELEASE_ID" ]; then
+          
+          if [ ! -z "$RELEASE_ID" ] && [ "$RELEASE_ID" != "null" ] && [[ ! "$RELEASE_ID" == *"message"* ]]; then
             echo "Existing release found with ID: $RELEASE_ID. Deleting it."
             gh api -X DELETE repos/${{ github.repository }}/releases/$RELEASE_ID
+            
+            # Also delete the tag if it exists
+            echo "Deleting tag $TAG_NAME if it exists"
+            git tag -d $TAG_NAME 2>/dev/null || true
+            git push --delete origin $TAG_NAME 2>/dev/null || true
           else
             echo "No existing release found with tag $TAG_NAME."
           fi
