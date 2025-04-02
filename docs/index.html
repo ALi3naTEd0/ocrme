@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCRMe - OCR Text Extractor</title>
+    <!-- Add both PNG and ICO favicons for better cross-browser support -->
+    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
+    <!-- Use Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Use external CSS file instead of inline styles -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- Add Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <img src="logo.png" alt="OCRMe Logo" class="logo">
+            <h1>OCRMe</h1>
+            <p class="tagline">Extract text from images with ease</p>
+            <div class="buttons">
+                <a href="#download" class="button">Download Now</a>
+                <a href="https://github.com/ALi3naTEd0/OCRMe" class="button">View on GitHub</a>
+            </div>
+        </div>
+    </header>
+
+    <section class="main">
+        <div class="container">
+            <h2>Available for multiple platforms</h2>
+            
+            <div class="platforms" id="download">
+                <div class="platform">
+                    <div class="platform-icon">
+                        <i class="fab fa-android"></i>
+                    </div>
+                    <h3>Android</h3>
+                    <p>For mobile devices</p>
+                    <div class="download-dropdown">
+                        <button class="download-button dropdown-toggle">
+                            <i class="fab fa-android"></i>
+                            <span>
+                                <strong>Android</strong>
+                                <small>Select version</small>
+                            </span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.apk" target="_blank" rel="noopener">
+                                Universal APK
+                            </a>
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_arm64-v8a.apk" target="_blank" rel="noopener">
+                                ARM64 (Most phones)
+                            </a>
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_armeabi-v7a.apk" target="_blank" rel="noopener">
+                                ARMv7 (Older phones)
+                            </a>
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_x86_64.apk" target="_blank" rel="noopener">
+                                x86_64 (Emulators)
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="platform">
+                    <div class="platform-icon">
+                        <i class="fab fa-windows"></i>
+                    </div>
+                    <h3>Windows</h3>
+                    <p>For Windows 10/11</p>
+                    <div class="download-dropdown">
+                        <button class="download-button dropdown-toggle">
+                            <i class="fab fa-windows"></i>
+                            <span>
+                                <strong>Windows</strong>
+                                <small>Select format</small>
+                            </span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.exe" target="_blank" rel="noopener">
+                                Installer (recommended)
+                            </a>
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_portable.zip" target="_blank" rel="noopener">
+                                Portable ZIP
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="platform">
+                    <div class="platform-icon">
+                        <i class="fab fa-apple"></i>
+                    </div>
+                    <h3>macOS</h3>
+                    <p>For Mac computers</p>
+                    <div class="download-dropdown">
+                        <button class="download-button dropdown-toggle">
+                            <i class="fab fa-apple"></i>
+                            <span>
+                                <strong>macOS</strong>
+                                <small>Select format</small>
+                            </span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.dmg" target="_blank" rel="noopener">
+                                DMG Installer
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="platform">
+                    <div class="platform-icon">
+                        <i class="fab fa-linux"></i>
+                    </div>
+                    <h3>Linux</h3>
+                    <p>Multiple formats</p>
+                    <div class="download-dropdown">
+                        <button class="download-button dropdown-toggle">
+                            <i class="fab fa-linux"></i>
+                            <span>
+                                <strong>Linux</strong>
+                                <small>Select format</small>
+                            </span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.AppImage" target="_blank" rel="noopener">
+                                AppImage (x86_64)
+                            </a>
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_amd64.deb" target="_blank" rel="noopener">
+                                Debian/Ubuntu Package
+                            </a>
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_x86_64.rpm" target="_blank" rel="noopener">
+                                RPM Package
+                            </a>
+                            <a href="https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.flatpak" target="_blank" rel="noopener">
+                                Flatpak Package
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>Made by ALi3naTEd0</p>
+            <div class="footer-links">
+                <a href="https://github.com/ALi3naTEd0/OCRMe">GitHub</a>
+                <a href="https://github.com/ALi3naTEd0/OCRMe/issues">Report Issues</a>
+                <a href="https://github.com/ALi3naTEd0/OCRMe/releases">Releases</a>
+            </div>
+            <p class="version">Version <span id="version">0.1.0-1</span> • MIT License</p>
+        </div>
+    </footer>
+
+    <script>
+        // Set the version number dynamically
+        document.addEventListener('DOMContentLoaded', function() {
+            const version = '0.1.0-1';
+            document.getElementById('version').textContent = version;
+            
+            // Dropdowns functionality
+            const dropdowns = document.querySelectorAll('.dropdown-toggle');
+            dropdowns.forEach(dropdown => {
+                dropdown.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const content = this.nextElementSibling;
+                    document.querySelectorAll('.dropdown-content').forEach(item => {
+                        if (item !== content) item.classList.remove('show');
+                    });
+                    content.classList.toggle('show');
+                });
+            });
+
+            // Close dropdowns when clicking outside
+            window.addEventListener('click', function(e) {
+                if (!e.target.matches('.dropdown-toggle') && !e.target.closest('.dropdown-toggle')) {
+                    document.querySelectorAll('.dropdown-content').forEach(item => {
+                        item.classList.remove('show');
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
