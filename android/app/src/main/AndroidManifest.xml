@@ -17,8 +17,9 @@
     <!-- Camera permission for taking photos for OCR -->
     <uses-permission android:name="android.permission.CAMERA" />
     
-    <!-- Add missing permissions -->
+    <!-- Fix: Add hardware features with required=false to avoid installation blocking -->
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
 
     <application
         android:label="OCRMe"
@@ -26,9 +27,10 @@
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"
         android:preserveLegacyExternalStorage="true"
-        android:extractNativeLibs="true">
+        android:extractNativeLibs="true"
+        android:largeHeap="true">
         
-        <!-- Main Activity -->
+        <!-- Main Activity - Fixed declaration to match class location -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -69,6 +71,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        
+        <!-- Fix: Make sure app will recognize tessdata files -->
+        <meta-data
+            android:name="com.ali3nated0.ocrme.tessdata_location"
+            android:value="/tessdata/" />
             
         <!-- For file access in Android 10+ -->
         <provider
