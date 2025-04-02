@@ -27,8 +27,20 @@ jobs:
         with:
           flutter-version: '3.29.1'
           channel: 'stable'
+          cache: true # Enable Flutter caching
         env:
           LANG: en_US.UTF-8
+
+      # Cache pub dependencies separately
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool/
+          key: pub-dependencies-windows-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-dependencies-windows-${{ runner.os }}-
 
       - name: Install CMake
         uses: lukka/get-cmake@latest
@@ -84,15 +96,47 @@ jobs:
 
       - name: Download Tessdata
         shell: pwsh
+        id: cache-tessdata
         run: |
-          # Create tessdata directory and download language files
-          ./installers/create_tessdata.ps1
+          # Check if tessdata has already been cached
+          $tessdataPath = "assets/tessdata"
+          $enginePath = "assets/eng.traineddata"
+          $spanishPath = "assets/spa.traineddata"
+          
+          if (!(Test-Path $tessdataPath)) {
+              Write-Host "Creating tessdata directory"
+              New-Item -ItemType Directory -Path $tessdataPath -Force
+              
+              Write-Host "Downloading tessdata files"
+              # Download English and Spanish language files
+              Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata" -OutFile "$tessdataPath/eng.traineddata"
+              Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata" -OutFile "$tessdataPath/spa.traineddata"
+              
+              Write-Host "Tessdata files downloaded successfully"
+          } else {
+              Write-Host "Tessdata directory already exists, checking files"
+              
+              if (!(Test-Path "$tessdataPath/eng.traineddata")) {
+                  Write-Host "Downloading English tessdata"
+                  Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata" -OutFile "$tessdataPath/eng.traineddata"
+              }
+              
+              if (!(Test-Path "$tessdataPath/spa.traineddata")) {
+                  Write-Host "Downloading Spanish tessdata"
+                  Invoke-WebRequest -Uri "https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata" -OutFile "$tessdataPath/spa.traineddata"
+              }
+              
+              Write-Host "Tessdata files verified"
+          }
+
+      - name: Install Flutter dependencies
+        run: flutter pub get
 
       - name: Setup Windows build
         run: flutter config --enable-windows-desktop
 
       - name: Build Windows
-        run: flutter build windows --release
+        run: flutter build windows --release --no-pub
 
       - name: Create Portable ZIP
         shell: pwsh
