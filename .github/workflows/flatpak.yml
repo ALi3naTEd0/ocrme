@@ -76,20 +76,36 @@ jobs:
           # Build Flutter app
           flutter build linux --release
           
-          # Prepare icons
+          # Prepare icons - create a square icon from our logo
           mkdir -p icons
-          if [ -f "assets/logo.svg" ]; then
-            # Convert SVG to PNG if SVG exists
-            convert -background none assets/logo.svg -resize 512x512 icons/com.ali3nated0.ocrme.png
+          
+          # Create a proper square icon for Flatpak
+          convert -size 512x512 xc:"#6A11CB" icons/bg.png
+          
+          # Get dimensions of the logo file
+          if [ -f "assets/logo.png" ]; then
+            convert assets/logo.png -resize 400x -background none icons/logo_resized.png
+          elif [ -f "assets/logo.svg" ]; then
+            convert assets/logo.svg -resize 400x -background none icons/logo_resized.png
           else
-            # Fallback to PNG if exists
-            if [ -f "assets/logo.png" ]; then
-              convert assets/logo.png -resize 512x512 icons/com.ali3nated0.ocrme.png
-            else
-              echo "No icon file found"
-              exit 1
-            fi
+            echo "Warning: No logo file found, creating placeholder..."
+            convert -size 400x200 xc:"#ffffff" -fill "#000000" -gravity center -annotate 0 "OCRMe" icons/logo_resized.png
           fi
+          
+          # Center the logo on the background
+          # Get dimensions
+          LOGO_WIDTH=$(identify -format "%w" icons/logo_resized.png)
+          LOGO_HEIGHT=$(identify -format "%h" icons/logo_resized.png)
+          
+          # Calculate position
+          X_OFFSET=$(( (512 - LOGO_WIDTH) / 2 ))
+          Y_OFFSET=$(( (512 - LOGO_HEIGHT) / 2 ))
+          
+          # Composite the images
+          convert icons/bg.png icons/logo_resized.png -geometry +${X_OFFSET}+${Y_OFFSET} -composite icons/com.ali3nated0.ocrme.png
+          
+          # Verify the icon is square
+          identify icons/com.ali3nated0.ocrme.png
           
           # Copy files to build directory
           rm -rf flatpak-build

@@ -38,10 +38,54 @@ jobs:
         with:
           arch: x64
 
-      - name: Setup Tessdata
+      - name: Download Icon
+        run: |
+          # Create assets directory if it doesn't exist
+          if (!(Test-Path "assets")) {
+              New-Item -ItemType Directory -Path "assets" -Force
+          }
+          
+          # Download icon directly from GitHub without needing conversion
+          $iconUrl = "https://raw.githubusercontent.com/ALi3naTEd0/ocrme/main/assets/logo.ico"
+          $iconUrlFallback = "https://raw.githubusercontent.com/ALi3naTEd0/ocrme/main/assets/logo.png"
+          $outputPath = "assets/logo.ico"
+          
+          try {
+              Invoke-WebRequest -Uri $iconUrl -OutFile $outputPath -ErrorAction Stop
+              Write-Host "Icon downloaded successfully from: $iconUrl"
+          } catch {
+              Write-Host "Failed to download ICO, trying PNG fallback..."
+              try {
+                  Invoke-WebRequest -Uri $iconUrlFallback -OutFile "assets/logo.png" -ErrorAction Stop
+                  Write-Host "PNG fallback downloaded successfully"
+                  Copy-Item "assets/logo.png" -Destination $outputPath -Force
+              } catch {
+                  Write-Host "Failed to download icon. Creating placeholder..."
+                  # Create a simple placeholder
+                  $tempFile = New-TemporaryFile
+                  Add-Type -AssemblyName System.Drawing
+                  $bitmap = New-Object System.Drawing.Bitmap 256, 256
+                  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+                  $graphics.Clear([System.Drawing.Color]::Purple)
+                  $bitmap.Save($tempFile.FullName, [System.Drawing.Imaging.ImageFormat]::Png)
+                  $bitmap.Dispose()
+                  $graphics.Dispose()
+                  Copy-Item $tempFile.FullName -Destination $outputPath -Force
+                  Remove-Item $tempFile.FullName -Force
+              }
+          }
+          
+          if (Test-Path $outputPath) {
+              Write-Host "Icon is ready at: $outputPath"
+          } else {
+              Write-Error "Failed to prepare icon"
+              exit 1
+          }
+
+      - name: Download Tessdata
         shell: pwsh
         run: |
-          # Create the tessdata directory and download language files
+          # Create tessdata directory and download language files
           ./installers/create_tessdata.ps1
 
       - name: Setup Windows build
@@ -49,12 +93,6 @@ jobs:
 
       - name: Build Windows
         run: flutter build windows --release
-
-      - name: Prepare Icon for Installer
-        shell: pwsh
-        run: |
-          # Convert the SVG logo to ICO format
-          ./installers/convert_icon.ps1
 
       - name: Create Portable ZIP
         shell: pwsh
