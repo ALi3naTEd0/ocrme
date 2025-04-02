@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6A11CB" />
+      <stop offset="100%" stop-color="#2575FC" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Clean rounded square background -->
+  <rect x="10" y="10" width="140" height="140" rx="25" fill="url(#gradient)" />
+  
+  <!-- OCR text on top line -->
+  <text x="80" y="75" font-family="Arial, sans-serif" font-size="44" font-weight="bold" fill="white" text-anchor="middle">OCR</text>
+  
+  <!-- Me text on second line -->
+  <text x="80" y="115" font-family="Arial, sans-serif" font-size="36" fill="white" text-anchor="middle">Me</text>
+  
+  <!-- Plus sign - positioned in the middle between high and original position -->
+  <line x1="110" y1="97.5" x2="122" y2="97.5" stroke="white" stroke-width="3" stroke-linecap="round" />
+  <line x1="116" y1="91.5" x2="116" y2="103.5" stroke="white" stroke-width="3" stroke-linecap="round" />
+</svg>
