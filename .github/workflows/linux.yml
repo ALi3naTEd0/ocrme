@@ -86,12 +86,12 @@ jobs:
               echo "Failed to download logo, creating placeholder"
               # Create a simple placeholder
               mkdir -p assets
-              cat > assets/logo.svg << EOF
+              cat > assets/logo.svg << 'SVGEOF'
               <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
                 <rect width="200" height="200" fill="#6A11CB"/>
                 <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="48" font-family="Arial">OCRMe</text>
               </svg>
-              EOF
+              SVGEOF
             }
           fi
 
