@@ -1,0 +1,200 @@
+name: Linux Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number'
+        required: true
+        type: string
+        default: '0.1.0-1'
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: 'Version number'
+
+env:
+  FLUTTER_VERSION: '3.29.1'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            libgtk-3-dev \
+            fuse \
+            libfuse2 \
+            tesseract-ocr \
+            tesseract-ocr-eng \
+            tesseract-ocr-spa
+          
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Download essential language files
+        run: |
+          mkdir -p assets/tessdata
+          # English and Spanish are the core languages for OCRMe
+          curl -L -o assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
+          curl -L -o assets/tessdata/spa.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
+
+      - name: Enable Linux
+        run: flutter config --enable-linux-desktop
+
+      - name: Build
+        run: flutter build linux --release
+
+      # AppImage build
+      - name: Create AppImage Structure
+        run: |
+          mkdir -p AppDir
+          cp -r build/linux/x64/release/bundle/* AppDir/
+          cp assets/logo.svg AppDir/ocrme.svg
+          
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/sh
+          cd "$(dirname "$0")"
+          exec ./ocrme "$@"
+          EOF
+          chmod +x AppDir/AppRun
+          
+          cat > AppDir/ocrme.desktop << EOF
+          [Desktop Entry]
+          Name=OCRMe
+          Exec=ocrme
+          Icon=ocrme
+          Type=Application
+          Categories=Utility;Graphics;TextTools;
+          Keywords=OCR;Text;Recognition;
+          EOF
+          
+          # Convert SVG to PNG for AppImage icon compatibility
+          sudo apt-get install -y librsvg2-bin
+          for size in 16 32 48 64 128 256; do
+            mkdir -p AppDir/usr/share/icons/hicolor/${size}x${size}/apps/
+            rsvg-convert -w $size -h $size assets/logo.svg > AppDir/usr/share/icons/hicolor/${size}x${size}/apps/ocrme.png
+          done
+
+      - name: Get AppImage Tool
+        run: |
+          wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+
+      - name: Build AppImage
+        run: |
+          # Ensure FUSE is loaded
+          sudo modprobe fuse
+          sudo chmod 666 /dev/fuse
+          sudo chown root:$USER /dev/fuse
+          
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir OCRMe_${{ inputs.version || github.event.inputs.version }}.AppImage
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-AppImage
+          path: OCRMe_${{ inputs.version || github.event.inputs.version }}.AppImage
+
+      # DEB build
+      - name: Build DEB Package
+        run: |
+          PKGDIR=OCRMe_${{ inputs.version || github.event.inputs.version }}_amd64
+          
+          # Create directory structure
+          mkdir -p $PKGDIR/DEBIAN
+          mkdir -p $PKGDIR/usr/bin
+          mkdir -p $PKGDIR/usr/lib/ocrme
+          mkdir -p $PKGDIR/usr/share/applications
+          mkdir -p $PKGDIR/usr/share/icons/hicolor/scalable/apps
+          
+          # Copy files
+          cp -r build/linux/x64/release/bundle/* $PKGDIR/usr/lib/ocrme/
+          cp assets/logo.svg $PKGDIR/usr/share/icons/hicolor/scalable/apps/ocrme.svg
+          
+          # Create launcher
+          cat > $PKGDIR/usr/bin/ocrme << 'EOF'
+          #!/bin/sh
+          cd /usr/lib/ocrme
+          exec ./ocrme "$@"
+          EOF
+          chmod 755 $PKGDIR/usr/bin/ocrme
+
+          # Create control file with Tesseract dependency
+          cat > $PKGDIR/DEBIAN/control << EOF
+          Package: ocrme
+          Version: ${{ inputs.version || github.event.inputs.version }}
+          Architecture: amd64
+          Maintainer: ALi3naTEd0 <eduardo.fortuny@outlook.com>
+          Depends: libgtk-3-0, libsecret-1-0, tesseract-ocr, tesseract-ocr-eng, tesseract-ocr-spa
+          Section: utils
+          Priority: optional
+          Description: OCR text extraction tool
+           A Flutter application for extracting text from images using OCR technology.
+           Features multiple language support and text correction.
+          EOF
+          
+          # Create desktop entry
+          cat > $PKGDIR/usr/share/applications/ocrme.desktop << EOF
+          [Desktop Entry]
+          Name=OCRMe
+          Comment=Extract text from images
+          Exec=/usr/bin/ocrme
+          Icon=ocrme
+          Type=Application
+          Categories=Utility;Graphics;TextTools;
+          Keywords=OCR;Text;Recognition;
+          EOF
+          chmod 644 $PKGDIR/usr/share/applications/ocrme.desktop
+
+          # Set permissions
+          chmod 755 -R $PKGDIR/usr/lib/ocrme
+          
+          # Build DEB
+          dpkg-deb --build $PKGDIR
+
+      - name: Upload DEB
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-DEB
+          path: OCRMe_${{ inputs.version || github.event.inputs.version }}_amd64.deb
+
+      # RPM build
+      - name: Build RPM Package
+        run: |
+          # Install alien for DEB to RPM conversion
+          sudo apt-get install -y alien rpm
+
+          # Convert DEB to RPM and use consistent naming
+          sudo alien --scripts --to-rpm OCRMe_${{ inputs.version || github.event.inputs.version }}_amd64.deb
+          # Rename from ocrme-version to OCRMe_version format
+          find . -name "ocrme-*.rpm" -exec mv {} OCRMe_${{ inputs.version || github.event.inputs.version }}_x86_64.rpm \;
+
+      - name: Upload RPM
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-RPM
+          path: OCRMe_${{ inputs.version || github.event.inputs.version }}_x86_64.rpm
+
+      # Simple tarball build
+      - name: Build tarball
+        run: |
+          VERSION=${{ inputs.version || github.event.inputs.version }}
+          cd build/linux/x64/release/bundle
+          tar -czf ../../../../../OCRMe_${VERSION}_linux_x64.tar.gz *
+
+      - name: Upload tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-TAR
+          path: OCRMe_${{ inputs.version || github.event.inputs.version }}_linux_x64.tar.gz

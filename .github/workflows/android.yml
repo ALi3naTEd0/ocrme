@@ -1,0 +1,129 @@
+name: Android Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number'
+        required: true
+        type: string
+        default: '0.1.0-1'
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: 'Version number'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Configure Gradle
+        run: |
+          mkdir -p $HOME/.gradle
+          echo "org.gradle.java.home=$JAVA_HOME" >> $HOME/.gradle/gradle.properties
+          echo "Current gradle.properties:"
+          cat $HOME/.gradle/gradle.properties
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            ~/.android/cache
+          key: gradle-android-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/*.properties', 'pubspec.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            gradle-android-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/*.properties', 'pubspec.yaml') }}-
+            gradle-android-${{ runner.os }}-
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.1'  # Updated to latest Flutter 3.29.1 version
+          channel: 'stable'
+
+      - name: Download essential language files
+        run: |
+          mkdir -p assets/tessdata
+          # English and Spanish are the core languages for OCRMe
+          curl -L -o assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
+          curl -L -o assets/tessdata/spa.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.UPLOAD_KEYSTORE }}" > upload-keystore.jks.base64
+          base64 -d upload-keystore.jks.base64 > android/app/upload-keystore.jks
+
+      - name: Set up key.properties
+        run: |
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=upload-keystore.jks" >> android/key.properties
+
+      # First build universal APK
+      - name: Build Universal APK
+        run: |
+          flutter pub get
+          flutter build apk --release
+          mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}.apk
+          
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-universal  
+          path: build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}.apk
+          
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            aapt \
+            android-sdk-build-tools
+
+      # Then build ABI-specific APKs
+      - name: Build Split APKs
+        run: |
+          flutter build apk --release --split-per-abi
+          
+          # Find aapt location and use full path
+          AAPT_PATH=$(which aapt)
+          echo "Using aapt from: $AAPT_PATH"
+          
+          # Verify package ID
+          PACKAGE_ID=$($AAPT_PATH dump badging build/app/outputs/flutter-apk/app-arm64-v8a-release.apk | grep package | awk '{print $2}' | sed "s/name='\([^']*\)'.*/\1/")
+          echo "Package ID: $PACKAGE_ID"
+          [ "$PACKAGE_ID" = "com.ali3nated0.ocrme" ] || exit 1
+          
+          # Rename APKs
+          mv build/app/outputs/flutter-apk/app-arm64-v8a-release.apk build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_arm64-v8a.apk
+          mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_armeabi-v7a.apk
+          mv build/app/outputs/flutter-apk/app-x86_64-release.apk build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_x86_64.apk
+
+      - name: Upload arm64-v8a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-arm64-v8a
+          path: build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_arm64-v8a.apk
+
+      - name: Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-armeabi-v7a
+          path: build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_armeabi-v7a.apk
+
+      - name: Upload x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-x86_64
+          path: build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_x86_64.apk

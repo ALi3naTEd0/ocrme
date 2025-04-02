@@ -1,0 +1,163 @@
+name: macOS Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number'
+        required: true
+        type: string
+        default: '0.1.0-1'
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: 'Version number'
+
+env:
+  FLUTTER_VERSION: '3.29.1'
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Setup Build
+        run: |
+          # Install ImageMagick first
+          brew install imagemagick
+          
+          # Ensure we have the logo files
+          mkdir -p assets
+          if [ ! -f "assets/logo.svg" ]; then
+            echo "Logo file not found. Creating a placeholder..."
+            # Create a simple placeholder icon if needed
+            convert -size 1024x1024 xc:transparent -fill "#6A11CB" -draw "rectangle 100,100 924,924" \
+                    -fill white -pointsize 200 -gravity center -annotate 0 "OCR" assets/logo.png
+          fi
+
+      - name: Download essential language files
+        run: |
+          mkdir -p assets/tessdata
+          # Download English and Spanish language files
+          curl -L -o assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
+          curl -L -o assets/tessdata/spa.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
+          
+      - name: Generate App Icons
+        run: |
+          # Create app icon directory if not exists
+          cd macos/Runner/Assets.xcassets/AppIcon.appiconset
+          
+          # Use SVG logo if available, otherwise use PNG
+          if [ -f "../../../../assets/logo.svg" ]; then
+            echo "Using SVG icon"
+            magick ../../../../assets/logo.svg -background none -resize 16x16 app_icon_16.png
+            magick ../../../../assets/logo.svg -background none -resize 32x32 app_icon_32.png
+            magick ../../../../assets/logo.svg -background none -resize 64x64 app_icon_64.png
+            magick ../../../../assets/logo.svg -background none -resize 128x128 app_icon_128.png
+            magick ../../../../assets/logo.svg -background none -resize 256x256 app_icon_256.png
+            magick ../../../../assets/logo.svg -background none -resize 512x512 app_icon_512.png
+            magick ../../../../assets/logo.svg -background none -resize 1024x1024 app_icon_1024.png
+          else
+            echo "Using PNG icon"
+            magick ../../../../assets/logo.png -resize 16x16 app_icon_16.png
+            magick ../../../../assets/logo.png -resize 32x32 app_icon_32.png
+            magick ../../../../assets/logo.png -resize 64x64 app_icon_64.png
+            magick ../../../../assets/logo.png -resize 128x128 app_icon_128.png
+            magick ../../../../assets/logo.png -resize 256x256 app_icon_256.png
+            magick ../../../../assets/logo.png -resize 512x512 app_icon_512.png
+            magick ../../../../assets/logo.png -resize 1024x1024 app_icon_1024.png
+          fi
+          
+          cd ../../../../
+
+      - name: Configure macOS Build
+        run: |
+          flutter config --enable-macos-desktop
+          flutter pub get
+          
+          # Fix bundle identifier in project.pbxproj
+          sed -i '' 's/com.example.ocrme/com.ali3nated0.ocrme/g' macos/Runner.xcodeproj/project.pbxproj
+          
+          # Ensure Info.plist has required keys
+          plutil -replace NSHighResolutionCapable -bool true macos/Runner/Info.plist
+          plutil -replace NSSupportsAutomaticGraphicsSwitching -bool true macos/Runner/Info.plist
+          
+          # Set app name in Info.plist
+          plutil -replace CFBundleName -string "OCRMe" macos/Runner/Info.plist
+          plutil -replace CFBundleDisplayName -string "OCRMe" macos/Runner/Info.plist
+
+          # Add camera and photo library permissions for OCR app
+          plutil -replace NSCameraUsageDescription -string "OCRMe needs camera access to take pictures for OCR processing" macos/Runner/Info.plist
+          plutil -replace NSPhotoLibraryUsageDescription -string "OCRMe needs access to your photo library to scan images for OCR processing" macos/Runner/Info.plist
+
+      - name: Build macOS App
+        run: |
+          # Disable Metal for better VM compatibility
+          defaults write com.ali3nated0.ocrme GSSupportsMetal -bool NO
+          defaults write com.ali3nated0.ocrme GSUseOpenGL -bool YES
+          
+          # Copy tessdata to the right location
+          mkdir -p build/macos/Build/Products/Release/OCRMe.app/Contents/Resources/tessdata/
+          
+          flutter build macos --release
+          
+          # Now copy files after build
+          cp -r assets/tessdata/* build/macos/Build/Products/Release/OCRMe.app/Contents/Resources/tessdata/
+
+      - name: Create DMG
+        run: |
+          APP_NAME="OCRMe"
+          APP_DIR="build/macos/Build/Products/Release/$APP_NAME.app"
+          DMG_DIR="$HOME/$APP_NAME-dmg"
+          DMG_NAME="OCRMe_${{ inputs.version || github.event.inputs.version }}.dmg"
+
+          mkdir -p "$DMG_DIR"
+          cp -r "$APP_DIR" "$DMG_DIR/"
+          ln -s /Applications "$DMG_DIR/Applications"
+
+          # Create a README file explaining the app needs Tesseract
+          cat > "$DMG_DIR/README.txt" << EOF
+          OCRMe - OCR Text Recognition Tool
+          
+          Requirements:
+          - Tesseract OCR must be installed on your Mac
+          - You can install it using Homebrew: brew install tesseract
+          
+          For more information, visit: https://github.com/ALi3naTEd0/OCRMe
+          EOF
+
+          SetFile -a V "$DMG_DIR"
+
+          hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_DIR" -ov -format UDZO "$HOME/$DMG_NAME"
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-DMG
+          path: ~/OCRMe_${{ inputs.version || github.event.inputs.version }}.dmg
+
+      - name: Create ZIP Package
+        run: |
+          APP_NAME="OCRMe"
+          APP_DIR="build/macos/Build/Products/Release/$APP_NAME.app"
+          ZIP_NAME="OCRMe_${{ inputs.version || github.event.inputs.version }}_macOS.zip"
+          
+          # Create clean zip archive
+          cd "build/macos/Build/Products/Release/"
+          zip -r "$HOME/$ZIP_NAME" "$APP_NAME.app"
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-macOS-ZIP
+          path: ~/OCRMe_${{ inputs.version || github.event.inputs.version }}_macOS.zip

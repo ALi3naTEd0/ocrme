@@ -1,0 +1,133 @@
+name: Windows Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number'
+        required: true
+        type: string
+        default: '0.1.0-1'
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+        description: 'Version number'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.29.1'
+          channel: 'stable'
+        env:
+          LANG: en_US.UTF-8
+
+      - name: Install CMake
+        uses: lukka/get-cmake@latest
+        
+      - name: Install Windows SDK
+        uses: egor-tensin/vs-shell@v2
+        with:
+          arch: x64
+
+      - name: Setup Tessdata
+        shell: pwsh
+        run: |
+          # Create the tessdata directory and download language files
+          ./installers/create_tessdata.ps1
+
+      - name: Setup Windows build
+        run: flutter config --enable-windows-desktop
+
+      - name: Build Windows
+        run: flutter build windows --release
+
+      - name: Prepare Icon for Installer
+        shell: pwsh
+        run: |
+          # Convert the SVG logo to ICO format
+          ./installers/convert_icon.ps1
+
+      - name: Create Portable ZIP
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version || github.event.inputs.version }}"
+          
+          $portableDirName = "OCRMe_${version}_portable"
+          
+          # Create portable directory and copy files
+          New-Item -ItemType Directory -Path $portableDirName -Force
+          Copy-Item -Path "build\windows\x64\runner\Release\*" -Destination $portableDirName -Recurse -Force
+          
+          # Create data directory with tessdata
+          New-Item -ItemType Directory -Path "$portableDirName\data\tessdata" -Force
+          Copy-Item -Path "assets\tessdata\*" -Destination "$portableDirName\data\tessdata" -Force
+          
+          # Create empty settings file if it doesn't exist
+          if (!(Test-Path "$portableDirName\data\settings.json")) {
+              Set-Content -Path "$portableDirName\data\settings.json" -Value "{}"
+          }
+          
+          # Create ZIP archive
+          $zipFileName = "OCRMe_${version}_portable.zip"
+          Compress-Archive -Path "$portableDirName\*" -DestinationPath $zipFileName -Force
+
+      - name: Upload Portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-portable
+          path: OCRMe_${{ inputs.version || github.event.inputs.version }}_portable.zip
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+
+      - name: Create Installer
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version || github.event.inputs.version }}
+        run: |
+          New-Item -ItemType Directory -Path "installers\Output" -Force
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' installers\inno_setup_script.iss
+
+      - name: Upload Setup Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-Setup
+          path: installers/Output/OCRMe_${{ inputs.version || github.event.inputs.version }}.exe
+
+      - name: Generate Checksums
+        shell: pwsh
+        run: |
+          $version = "${{ inputs.version || github.event.inputs.version }}"
+          $files = @(
+              "OCRMe_${version}_portable.zip",
+              "installers\Output\OCRMe_${version}.exe"
+          )
+          
+          foreach ($file in $files) {
+              if (Test-Path $file) {
+                  $hash = Get-FileHash -Algorithm SHA256 -Path $file
+                  $hashFile = "$file.sha256"
+                  "$($hash.Hash.ToLower())  $($file.Split('\')[-1])" | Out-File -FilePath $hashFile
+                  Write-Host "Created checksum for $file: $($hash.Hash.ToLower())"
+              }
+              else {
+                  Write-Warning "File not found: $file"
+              }
+          }
+
+      - name: Upload Checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: OCRMe-Checksums
+          path: |
+            OCRMe_${{ inputs.version || github.event.inputs.version }}_portable.zip.sha256
+            installers/Output/OCRMe_${{ inputs.version || github.event.inputs.version }}.exe.sha256
