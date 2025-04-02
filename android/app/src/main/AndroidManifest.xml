@@ -16,9 +16,12 @@
     
     <!-- Camera permission for taking photos for OCR -->
     <uses-permission android:name="android.permission.CAMERA" />
+    
+    <!-- Add missing permissions -->
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <application
-        android:label="@string/app_name"
+        android:label="OCRMe"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:requestLegacyExternalStorage="true"

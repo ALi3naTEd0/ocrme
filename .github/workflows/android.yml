@@ -83,9 +83,63 @@ jobs:
           curl -L -o assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
           curl -L -o assets/tessdata/spa.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
       
+      # Ensure tessdata is included in Android assets
+      - name: Copy Tessdata to Android Assets
+        run: |
+          # Create Android assets dir if it doesn't exist
+          mkdir -p android/app/src/main/assets/tessdata
+          
+          # Copy tessdata from assets to the Android assets directory
+          cp -r assets/tessdata/* android/app/src/main/assets/tessdata/
+          
+          # Print the contents of the Android assets directory
+          echo "Android tessdata contents:"
+          ls -la android/app/src/main/assets/tessdata/
+
       # Get dependencies before building
       - name: Install Flutter dependencies
         run: flutter pub get
+
+      # Add icon handling for Android builds
+      - name: Prepare Android Icons
+        run: |
+          echo "Preparing Android icons from logo file"
+          mkdir -p android/app/src/main/res/drawable
+          
+          # Use the existing logo.png file to create appropriate icons
+          # Check if imagemagick is installed
+          if ! command -v convert &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+          fi
+          
+          # Create proper Android launcher icons in various sizes
+          ICON_SIZES=("36" "48" "72" "96" "144" "192")
+          DENSITY_NAMES=("ldpi" "mdpi" "hdpi" "xhdpi" "xxhdpi" "xxxhdpi")
+          
+          for i in "${!ICON_SIZES[@]}"; do
+            SIZE=${ICON_SIZES[$i]}
+            DENSITY=${DENSITY_NAMES[$i]}
+            
+            mkdir -p "android/app/src/main/res/mipmap-$DENSITY"
+            convert -resize "${SIZE}x${SIZE}" assets/logo.png "android/app/src/main/res/mipmap-$DENSITY/ic_launcher.png"
+            
+            # Also create rounded icons for modern Android
+            convert assets/logo.png -resize "${SIZE}x${SIZE}" -background white -alpha remove -alpha off \
+              \( +clone -background black -shadow 40x8+0+8 \) +swap -background none \
+              -layers merge +repage -crop ${SIZE}x${SIZE}+0+0 \
+              "android/app/src/main/res/mipmap-$DENSITY/ic_launcher_round.png"
+            
+            echo "Created icons for $DENSITY ($SIZE x $SIZE)"
+          done
+          
+          # Create adaptive icon background (plain color matching the app theme)
+          convert -size 108x108 xc:"#6A11CB" android/app/src/main/res/drawable/ic_launcher_background.png
+          
+          # Copy the logo as the foreground (should be transparent background ideally)
+          convert assets/logo.png -resize "108x108" android/app/src/main/res/drawable/ic_launcher_foreground.png
+          
+          echo "Android icons created successfully"
 
       # First check if keystore secrets exist, otherwise generate a debug keystore
       - name: Set up keystore

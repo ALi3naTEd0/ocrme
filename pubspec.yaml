@@ -13,7 +13,7 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.2
   image_picker: ^1.0.4
-  path_provider: ^2.0.15
+  path_provider: ^2.1.0
   flutter_dropzone: ^3.0.6
   desktop_drop: ^0.4.4
   logging: ^1.2.0
@@ -24,6 +24,9 @@ dependencies:
   sqflite: ^2.3.0
   sqflite_common_ffi: ^2.3.0
   file_picker: ^8.0.5
+  
+  # Add these dependencies for Android platform
+  permission_handler: ^10.2.0
   
   # Remove Google ML Kit altogether since we're not using it right now
   # We'll implement a pure Tesseract OCR approach

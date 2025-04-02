@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:path/path.dart' as path;
 import 'ocr_processor.dart';
 import 'unified_drop_zone.dart';
 import 'custom_app_bar.dart';
@@ -99,6 +101,21 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
     _initializeOutputDirectory();
     _loadAutoSavePreference();
+    _checkPermissions();
+  }
+
+  Future<void> _checkPermissions() async {
+    if (Platform.isAndroid) {
+      try {
+        // Request camera and storage permissions on Android
+        await [
+          Permission.camera,
+          Permission.storage,
+        ].request();
+      } catch (e) {
+        _logger.warning('Error requesting permissions: $e');
+      }
+    }
   }
 
   Future<void> _initializeOutputDirectory() async {
@@ -164,6 +181,34 @@ class _MyHomePageState extends State<MyHomePage> {
           _ocrResult = 'Processing...';
           _confidenceScore = 0.0;
         });
+
+        // Add special handling for Android
+        if (Platform.isAndroid) {
+          // Ensure tessdata is configured correctly
+          final tessDir = await getApplicationSupportDirectory();
+          final tessdataPath = path.join(tessDir.path, 'tessdata');
+          final tessDataDir = Directory(tessdataPath);
+
+          if (!await tessDataDir.exists()) {
+            await tessDataDir.create(recursive: true);
+
+            // Extract bundled tessdata from Android assets
+            try {
+              // Copy eng and spa traineddata to the app's tessdata directory
+              final assetFile =
+                  await rootBundle.load('assets/tessdata/eng.traineddata');
+              final targetFile = File('${tessDataDir.path}/eng.traineddata');
+              await targetFile.writeAsBytes(assetFile.buffer.asUint8List());
+
+              final spanishAsset =
+                  await rootBundle.load('assets/tessdata/spa.traineddata');
+              final spanishFile = File('${tessDataDir.path}/spa.traineddata');
+              await spanishFile.writeAsBytes(spanishAsset.buffer.asUint8List());
+            } catch (e) {
+              _logger.severe('Error extracting tessdata on Android: $e');
+            }
+          }
+        }
 
         final result = await _ocrProcessor.processImage(
           _image!,
