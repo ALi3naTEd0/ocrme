@@ -48,8 +48,8 @@ Download and install the APK for your device architecture:
 
 Two options available:
 
-- [Installer (recommended)](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.exe): Run the installer and follow the prompts
-- [Portable ZIP](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_portable.zip): Extract and run `ocrme.exe`
+- [Installer (recommended)](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2.exe): Run the installer and follow the prompts
+- [Portable ZIP](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2_portable.zip): Extract and run `ocrme.exe`
 
 ### macOS
 
@@ -59,7 +59,7 @@ brew install tesseract
 ```
 
 Then, download and install the app:
-- [DMG Installer](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.dmg)
+- [DMG Installer](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2.dmg)
 - [ZIP Archive](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_macOS.zip)
 
 ### Linux
@@ -78,10 +78,10 @@ sudo pacman -S tesseract
 ```
 
 Choose your preferred package format:
-- [AppImage](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.AppImage): Make executable with `chmod +x OCRMe_0.1.0-1.AppImage` and run
-- [DEB Package](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_amd64.deb): `sudo dpkg -i OCRMe_0.1.0-1_amd64.deb`
-- [RPM Package](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_x86_64.rpm): `sudo rpm -i OCRMe_0.1.0-1_x86_64.rpm`
-- [Flatpak](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1.flatpak): `flatpak install OCRMe_0.1.0-1.flatpak`
+- [AppImage](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2.AppImage): Make executable with `chmod +x OCRMe_0.1.0-2.AppImage` and run
+- [DEB Package](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2_amd64.deb): `sudo dpkg -i OCRMe_0.1.0-2_amd64.deb`
+- [RPM Package](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2_x86_64.rpm): `sudo rpm -i OCRMe_0.1.0-2_x86_64.rpm`
+- [Flatpak](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-2.flatpak): `flatpak install OCRMe_0.1.0-2.flatpak`
 - [TAR Archive](https://github.com/ALi3naTEd0/OCRMe/releases/latest/download/OCRMe_0.1.0-1_linux_x64.tar.gz): Extract and run `./ocrme`
 
 ## 📚 Language System
