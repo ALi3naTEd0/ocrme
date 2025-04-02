@@ -1,18 +1,39 @@
 pluginManagement {
-    def flutterSdkPath = localProperties.getProperty('flutter.sdk')
-    assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
-    def flutterRoot = file(flutterSdkPath)
-    include ':app'
+    // Remove the problematic localProperties reference
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }
 
-include ':app'
+// Define any plugins needed
+def flutterProjectRoot = rootProject.projectDir.parentFile.toPath()
+def plugins = new Properties()
+def pluginsFile = new File(flutterProjectRoot.toFile(), '.flutter-plugins')
+if (pluginsFile.exists()) {
+    pluginsFile.withReader('UTF-8') { reader -> plugins.load(reader) }
+}
 
-def localPropertiesFile = new File(rootProject.projectDir, "local.properties")
+// Configure Flutter SDK path
+def localPropertiesFile = new File(flutterProjectRoot.toFile(), 'local.properties')
 def properties = new Properties()
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader('UTF-8') { reader -> properties.load(reader) }
+}
 
-assert localPropertiesFile.exists()
-localPropertiesFile.withReader("UTF-8") { reader -> properties.load(reader) }
+// Set repositories
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
 
-def flutterSdkPath = properties.getProperty("flutter.sdk")
-assert flutterSdkPath != null, "flutter.sdk not set in local.properties"
-apply from: "$flutterSdkPath/packages/flutter_tools/gradle/app_plugin_loader.gradle"
+// Set up the root project
+rootProject.name = 'android'
+apply from: "${flutterProjectRoot}/packages/flutter_tools/gradle/app_plugin_loader.gradle"
+
+// Include Flutter plugin projects
+include ':app'
