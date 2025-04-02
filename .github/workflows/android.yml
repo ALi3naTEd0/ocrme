@@ -35,15 +35,17 @@ jobs:
           echo "Current gradle.properties:"
           cat $HOME/.gradle/gradle.properties
 
-      - uses: actions/cache@v4
+      # Improved cache strategy with correct dependency paths
+      - name: Cache Gradle and Android dependencies
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
             ~/.android/cache
-          key: gradle-android-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/*.properties', 'pubspec.yaml') }}-${{ github.sha }}
+          key: gradle-android-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}-${{ github.sha }}
           restore-keys: |
-            gradle-android-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/*.properties', 'pubspec.yaml') }}-
+            gradle-android-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}-
             gradle-android-${{ runner.os }}-
 
       - name: Setup Flutter
@@ -51,8 +53,29 @@ jobs:
         with:
           flutter-version: '3.29.1'
           channel: 'stable'
+          cache: true # Enable Flutter caching
+
+      # Cache pub dependencies separately (more efficient than general cache)
+      - name: Cache pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool/
+          key: pub-dependencies-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-dependencies-${{ runner.os }}-
+
+      # Download tessdata files only if not already cached
+      - name: Cache Tessdata Files
+        id: cache-tessdata
+        uses: actions/cache@v4
+        with:
+          path: assets/tessdata
+          key: tessdata-${{ hashFiles('**/pubspec.yaml') }}
 
       - name: Download Icons & Tessdata
+        if: steps.cache-tessdata.outputs.cache-hit != 'true'
         run: |
           mkdir -p assets
           mkdir -p assets/tessdata
@@ -63,6 +86,10 @@ jobs:
           # Download essential language files
           curl -L -o assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
           curl -L -o assets/tessdata/spa.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
+      
+      # Get dependencies before building
+      - name: Install Flutter dependencies
+        run: flutter pub get
 
       # First check if keystore secrets exist, otherwise generate a debug keystore
       - name: Set up keystore
@@ -91,11 +118,10 @@ jobs:
             echo "storeFile=upload-keystore.jks" >> android/key.properties
           fi
 
-      # First build universal APK
+      # Optimize build by using --no-pub option since we already ran pub get
       - name: Build Universal APK
         run: |
-          flutter pub get
-          flutter build apk --release
+          flutter build apk --release --no-pub
           mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}.apk
           
       - name: Upload APK Artifact
@@ -111,10 +137,10 @@ jobs:
             aapt \
             android-sdk-build-tools
 
-      # Then build ABI-specific APKs
+      # Use split per ABI without repeating pub get
       - name: Build Split APKs
         run: |
-          flutter build apk --release --split-per-abi
+          flutter build apk --release --split-per-abi --no-pub
           
           # Find aapt location and use full path
           AAPT_PATH=$(which aapt)
@@ -130,20 +156,12 @@ jobs:
           mv build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_armeabi-v7a.apk
           mv build/app/outputs/flutter-apk/app-x86_64-release.apk build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_x86_64.apk
 
-      - name: Upload arm64-v8a APK
+      # Upload artifacts in parallel
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: OCRMe-arm64-v8a
-          path: build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_arm64-v8a.apk
-
-      - name: Upload armeabi-v7a APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCRMe-armeabi-v7a
-          path: build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_armeabi-v7a.apk
-
-      - name: Upload x86_64 APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCRMe-x86_64
-          path: build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_x86_64.apk
+          name: OCRMe-all-apks
+          path: |
+            build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_arm64-v8a.apk
+            build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_armeabi-v7a.apk
+            build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}_x86_64.apk
