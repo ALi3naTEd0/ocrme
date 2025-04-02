@@ -40,7 +40,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.svg
-    - assets/logo_mobile.svg
+    - assets/logo.png
     - assets/tessdata_config.json
     # Only include essential language files for a super light app
     - assets/tessdata/eng.traineddata
