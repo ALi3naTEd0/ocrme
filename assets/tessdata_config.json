@@ -1,5 +1,7 @@
 {
-  "tessdata-dir": "assets/tessdata",
+  "psm": "4",
+  "oem": "1",
   "preserve_interword_spaces": "1",
-  "psm": "4"
+  "tesseract_path": "",
+  "language_download_url": "https://github.com/tesseract-ocr/tessdata_fast/raw/main/"
 }
