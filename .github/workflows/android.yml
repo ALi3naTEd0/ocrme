@@ -168,7 +168,7 @@ jobs:
             echo "storeFile=upload-keystore.jks" >> android/key.properties
           fi
 
-      # Add this step to modify build.gradle before building
+      # Fix the Build Configuration step to avoid here-document issues
       - name: Fix Build Configuration
         run: |
           echo "Fixing Android build.gradle configuration for split APKs..."
@@ -178,9 +178,8 @@ jobs:
             # Remove or comment out any conflicting ndk block that specifies abiFilters
             sed -i '/ndk {/,/}/s/^/\/\/ /' android/app/build.gradle
             
-            # Add a properly structured ABI splits configuration
-            cat >> android/app/build.gradle << 'EOL'
-            
+            # Create a temporary file with the splits configuration
+            echo '
             android {
                 // Add this configuration for split APKs without conflicting with NDK
                 splits {
@@ -191,8 +190,11 @@ jobs:
                         universalApk true
                     }
                 }
-            }
-            EOL
+            }' > splits_config.txt
+            
+            # Append the configuration to build.gradle
+            cat splits_config.txt >> android/app/build.gradle
+            rm splits_config.txt
             
             echo "Android build.gradle modified successfully"
           else
