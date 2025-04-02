@@ -49,27 +49,47 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.29.1'  # Updated to latest Flutter 3.29.1 version
+          flutter-version: '3.29.1'
           channel: 'stable'
 
-      - name: Download essential language files
+      - name: Download Icons & Tessdata
         run: |
+          mkdir -p assets
           mkdir -p assets/tessdata
-          # English and Spanish are the core languages for OCRMe
+          
+          # Download logo directly from GitHub
+          curl -o assets/logo.png https://raw.githubusercontent.com/ALi3naTEd0/ocrme/main/assets/logo.png
+          
+          # Download essential language files
           curl -L -o assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
           curl -L -o assets/tessdata/spa.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
 
-      - name: Decode Keystore
+      # First check if keystore secrets exist, otherwise generate a debug keystore
+      - name: Set up keystore
         run: |
-          echo "${{ secrets.UPLOAD_KEYSTORE }}" > upload-keystore.jks.base64
-          base64 -d upload-keystore.jks.base64 > android/app/upload-keystore.jks
-
-      - name: Set up key.properties
-        run: |
-          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
-          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
-          echo "storeFile=upload-keystore.jks" >> android/key.properties
+          if [ "${{ secrets.UPLOAD_KEYSTORE }}" != "" ] && [ "${{ secrets.KEYSTORE_PASSWORD }}" != "" ]; then
+            echo "Using provided keystore from secrets"
+            echo "${{ secrets.UPLOAD_KEYSTORE }}" | base64 --decode > android/app/upload-keystore.jks
+            echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/key.properties
+            echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+            echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+            echo "storeFile=upload-keystore.jks" >> android/key.properties
+          else
+            echo "Keystore secrets not found. Generating debug keystore..."
+            keytool -genkeypair \
+              -alias upload \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 9125 \
+              -keystore android/app/upload-keystore.jks \
+              -storepass 'android' \
+              -keypass 'android' \
+              -dname 'CN=ALi3naTEd0, OU=Mobile Development, O=OCRMe, L=Internet, S=GitHub, C=US'
+            echo "storePassword=android" >> android/key.properties
+            echo "keyPassword=android" >> android/key.properties
+            echo "keyAlias=upload" >> android/key.properties
+            echo "storeFile=upload-keystore.jks" >> android/key.properties
+          fi
 
       # First build universal APK
       - name: Build Universal APK
@@ -81,7 +101,7 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: OCRMe-universal  
+          name: OCRMe-universal
           path: build/app/outputs/flutter-apk/OCRMe_${{ inputs.version || github.event.inputs.version }}.apk
           
       - name: Install Dependencies

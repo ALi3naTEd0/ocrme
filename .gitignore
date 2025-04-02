@@ -43,3 +43,29 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Development-only files
+/dev_notes/
+
+# Keystore files for app signing - IMPORTANT: do not commit these!
+*.jks
+*.keystore
+*.p12
+upload-keystore.jks
+android/key.properties
+android/app/upload-keystore.jks
+android/app/keystore/
+
+# Generated language files
+/assets/tessdata/
+
+# Installer temp directories and files
+/installers/Output/
+*.deb
+*.rpm
+*.AppImage
+*.dmg
+*.zip
+*.exe
+*.apk
+*.aab
