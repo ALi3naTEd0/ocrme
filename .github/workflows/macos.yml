@@ -168,19 +168,3 @@ jobs:
         with:
           name: OCRMe-DMG
           path: ~/OCRMe_${{ inputs.version || github.event.inputs.version }}.dmg
-
-      - name: Create ZIP Package
-        run: |
-          APP_NAME="OCRMe"
-          APP_DIR="build/macos/Build/Products/Release/$APP_NAME.app"
-          ZIP_NAME="OCRMe_${{ inputs.version || github.event.inputs.version }}_macOS.zip"
-          
-          # Create clean zip archive
-          cd "build/macos/Build/Products/Release/"
-          zip -r "$HOME/$ZIP_NAME" "$APP_NAME.app"
-
-      - name: Upload ZIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCRMe-macOS-ZIP
-          path: ~/OCRMe_${{ inputs.version || github.event.inputs.version }}_macOS.zip

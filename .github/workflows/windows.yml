@@ -186,33 +186,3 @@ jobs:
         with:
           name: OCRMe-Setup
           path: installers/Output/OCRMe_${{ inputs.version || github.event.inputs.version }}.exe
-
-      - name: Generate Checksums
-        shell: pwsh
-        run: |
-          $version = "${{ inputs.version || github.event.inputs.version }}"
-          $files = @(
-              "OCRMe_${version}_portable.zip",
-              "installers\Output\OCRMe_${version}.exe"
-          )
-          
-          foreach ($file in $files) {
-              if (Test-Path $file) {
-                  $hash = Get-FileHash -Algorithm SHA256 -Path $file
-                  $hashFile = "$file.sha256"
-                  # Fix: Properly escape the filepath expression
-                  "$($hash.Hash.ToLower())  $(Split-Path $file -Leaf)" | Out-File -FilePath $hashFile
-                  Write-Host "Created checksum for ${file}: $($hash.Hash.ToLower())"
-              }
-              else {
-                  Write-Warning "File not found: $file"
-              }
-          }
-
-      - name: Upload Checksums
-        uses: actions/upload-artifact@v4
-        with:
-          name: OCRMe-Checksums
-          path: |
-            OCRMe_${{ inputs.version || github.event.inputs.version }}_portable.zip.sha256
-            installers/Output/OCRMe_${{ inputs.version || github.event.inputs.version }}.exe.sha256
