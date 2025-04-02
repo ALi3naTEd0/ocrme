@@ -111,6 +111,21 @@ jobs:
           fi
           echo "Using version: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref_name }}"
           
+      - name: Delete existing draft release with same tag
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref }}"
+          # Check if release exists
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases/tags/$TAG_NAME --jq '.id' 2>/dev/null || echo "")
+          if [ ! -z "$RELEASE_ID" ]; then
+            echo "Existing release found with ID: $RELEASE_ID. Deleting it."
+            gh api -X DELETE repos/${{ github.repository }}/releases/$RELEASE_ID
+          else
+            echo "No existing release found with tag $TAG_NAME."
+          fi
+
       - name: Create Release Notes
         id: create_release_notes
         run: |
@@ -167,9 +182,24 @@ jobs:
           merge-multiple: true
           pattern: '*'
 
-      - name: Debug Directory Contents
+      - name: Organize Artifacts
         run: |
-          ls -la dist/ || echo "Dist directory is empty or doesn't exist"
+          echo "Artifact directory contents before organization:"
+          ls -la dist/
+          
+          # Only move nested files if they exist
+          if find dist -mindepth 2 -type f | grep -q .; then
+            echo "Moving nested files to root..."
+            find dist -mindepth 2 -type f -exec mv -t dist/ {} + 2>/dev/null
+          else
+            echo "No nested files to move"
+          fi
+          
+          # Clean up empty directories
+          find dist -type d -empty -delete 2>/dev/null || echo "No empty dirs to remove"
+          
+          echo "Final dist content:"
+          ls -lh dist/
 
       # Create release with proper notes and artifacts
       - name: Create Release and Upload Assets
@@ -246,6 +276,25 @@ jobs:
             sed -i "s/## \[Unreleased\]/## [Unreleased]\n\n## [${VERSION}] - ${TODAY}/" CHANGELOG.md
           fi
           
+          # Update website version (similar to RateMe workflow)
+          if [ -d "website" ]; then
+            if [ -f "website/index.html" ]; then
+              # Update version in index.html
+              sed -i "s/OCRMe v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/OCRMe v${VERSION}/g" website/index.html
+              # Update download links
+              sed -i "s/OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/OCRMe_${VERSION}/g" website/index.html
+            fi
+
+            if [ -f "website/download.html" ]; then
+              # Update version in download.html
+              sed -i "s/OCRMe v[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/OCRMe v${VERSION}/g" website/download.html
+              # Update download links
+              sed -i "s/OCRMe_[0-9]\+\.[0-9]\+\.[0-9]\+-[0-9]\+/OCRMe_${VERSION}/g" website/download.html
+              # Update release date
+              sed -i "s/Released: [0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}/Released: ${TODAY}/g" website/download.html
+            fi
+          fi
+          
           # Commit changes if any
           if git diff --quiet; then
             echo "No changes to commit"
@@ -255,3 +304,33 @@ jobs:
           git add -A
           git commit -m "docs: update documentation for version ${VERSION}"
           git push origin HEAD:main
+
+  # STEP 4: DEPLOY WEBSITE - Update and deploy website with new version
+  deploy-website:
+    name: Deploy Website
+    needs: [create-release, update-docs]
+    if: |
+      github.event_name == 'workflow_dispatch' && 
+      github.event.inputs.release_type == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main  # Get the updated docs from main branch
+      
+      - name: Check if website directory exists
+        id: check_website
+        run: |
+          if [ -d "website" ]; then
+            echo "has_website=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_website=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to GitHub Pages
+        if: steps.check_website.outputs.has_website == 'true'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: website
+          clean: true

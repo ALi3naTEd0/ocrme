@@ -79,6 +79,7 @@ jobs:
           path: assets/tessdata
           key: tessdata-flatpak-${{ hashFiles('pubspec.yaml') }}
 
+      # Add this missing step to ensure tessdata is downloaded when needed
       - name: Download Tessdata if needed
         if: steps.cache-tessdata.outputs.cache-hit != 'true'
         run: |
@@ -91,6 +92,9 @@ jobs:
         run: |
           flutter config --enable-linux-desktop
           flutter pub get
+          
+          # Create native_assets directory to prevent the CMake error
+          mkdir -p build/native_assets/linux
           
           # Build Flutter app with --no-pub for efficiency
           flutter build linux --release --no-pub

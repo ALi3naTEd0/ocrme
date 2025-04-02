@@ -28,8 +28,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            clang \
+            cmake \
             ninja-build \
+            pkg-config \
             libgtk-3-dev \
+            liblzma-dev \
+            libstdc++-12-dev \
             fuse \
             libfuse2 \
             tesseract-ocr \
@@ -70,21 +75,65 @@ jobs:
           curl -L -o assets/tessdata/eng.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata
           curl -L -o assets/tessdata/spa.traineddata https://github.com/tesseract-ocr/tessdata_fast/raw/main/spa.traineddata
 
+      # Ensure a logo file exists for the build
+      - name: Prepare Logo File
+        run: |
+          mkdir -p assets
+          # Try to download the logo if it's not already there
+          if [ ! -f "assets/logo.svg" ] && [ ! -f "assets/logo.png" ]; then
+            echo "Downloading logo..."
+            curl -L -o assets/logo.png https://raw.githubusercontent.com/ALi3naTEd0/ocrme/main/assets/logo.png || {
+              echo "Failed to download logo, creating placeholder"
+              # Create a simple placeholder
+              mkdir -p assets
+              cat > assets/logo.svg << EOF
+              <svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+                <rect width="200" height="200" fill="#6A11CB"/>
+                <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="48" font-family="Arial">OCRMe</text>
+              </svg>
+              EOF
+            }
+          fi
+
       - name: Enable Linux
         run: flutter config --enable-linux-desktop
 
       - name: Install Flutter dependencies
-        run: flutter pub get
+        run: |
+          echo "Flutter version:"
+          flutter --version
+          
+          echo "Running pub get..."
+          flutter pub get
 
-      - name: Build
-        run: flutter build linux --release --no-pub
+      - name: Build Linux Application
+        run: |
+          echo "Building Linux application..."
+          # Create native_assets directory to prevent the CMake error
+          mkdir -p build/native_assets/linux
+          
+          # Add verbosity to see where build might be failing
+          flutter build linux --release --no-pub -v
+          
+          # Check if build succeeded
+          if [ ! -f "build/linux/x64/release/bundle/ocrme" ]; then
+            echo "Build failed to produce the executable"
+            exit 1
+          fi
+          echo "Build completed successfully"
 
       # AppImage build
       - name: Create AppImage Structure
         run: |
           mkdir -p AppDir
           cp -r build/linux/x64/release/bundle/* AppDir/
-          cp assets/logo.svg AppDir/ocrme.svg
+          
+          # Use whatever logo is available
+          if [ -f "assets/logo.svg" ]; then
+            cp assets/logo.svg AppDir/ocrme.svg
+          else
+            cp assets/logo.png AppDir/ocrme.png
+          fi
           
           cat > AppDir/AppRun << 'EOF'
           #!/bin/sh
@@ -103,12 +152,19 @@ jobs:
           Keywords=OCR;Text;Recognition;
           EOF
           
-          # Convert SVG to PNG for AppImage icon compatibility
-          sudo apt-get install -y librsvg2-bin
-          for size in 16 32 48 64 128 256; do
-            mkdir -p AppDir/usr/share/icons/hicolor/${size}x${size}/apps/
-            rsvg-convert -w $size -h $size assets/logo.svg > AppDir/usr/share/icons/hicolor/${size}x${size}/apps/ocrme.png
-          done
+          # Create icons for AppImage
+          mkdir -p AppDir/usr/share/icons/hicolor/{16x16,32x32,48x48,64x64,128x128,256x256}/apps/
+          
+          # Use inkscape for SVG conversion if available, otherwise use convert
+          if [ -f "assets/logo.svg" ] && command -v inkscape &> /dev/null; then
+            for size in 16 32 48 64 128 256; do
+              inkscape -w $size -h $size assets/logo.svg -o AppDir/usr/share/icons/hicolor/${size}x${size}/apps/ocrme.png
+            done
+          elif [ -f "assets/logo.png" ]; then
+            for size in 16 32 48 64 128 256; do
+              convert assets/logo.png -resize ${size}x${size} AppDir/usr/share/icons/hicolor/${size}x${size}/apps/ocrme.png
+            done
+          fi
 
       - name: Get AppImage Tool
         run: |
@@ -118,11 +174,14 @@ jobs:
       - name: Build AppImage
         run: |
           # Ensure FUSE is loaded
-          sudo modprobe fuse
-          sudo chmod 666 /dev/fuse
-          sudo chown root:$USER /dev/fuse
+          sudo modprobe fuse || true
+          sudo chmod 666 /dev/fuse || true
+          sudo chown root:$USER /dev/fuse || true
           
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir OCRMe_${{ inputs.version || github.event.inputs.version }}.AppImage
+          # Run appimagetool with debug output
+          echo "Creating AppImage..."
+          export ARCH=x86_64
+          ./appimagetool-x86_64.AppImage --verbose AppDir OCRMe_${{ inputs.version || github.event.inputs.version }}.AppImage
 
       - name: Upload AppImage
         uses: actions/upload-artifact@v4
@@ -141,10 +200,18 @@ jobs:
           mkdir -p $PKGDIR/usr/lib/ocrme
           mkdir -p $PKGDIR/usr/share/applications
           mkdir -p $PKGDIR/usr/share/icons/hicolor/scalable/apps
+          mkdir -p $PKGDIR/usr/share/icons/hicolor/256x256/apps
           
           # Copy files
           cp -r build/linux/x64/release/bundle/* $PKGDIR/usr/lib/ocrme/
-          cp assets/logo.svg $PKGDIR/usr/share/icons/hicolor/scalable/apps/ocrme.svg
+          
+          # Use SVG if available, otherwise PNG
+          if [ -f "assets/logo.svg" ]; then
+            cp assets/logo.svg $PKGDIR/usr/share/icons/hicolor/scalable/apps/ocrme.svg
+          fi
+          if [ -f "assets/logo.png" ];then
+            convert assets/logo.png -resize 256x256 $PKGDIR/usr/share/icons/hicolor/256x256/apps/ocrme.png
+          fi
           
           # Create launcher
           cat > $PKGDIR/usr/bin/ocrme << 'EOF'
@@ -215,7 +282,8 @@ jobs:
         run: |
           VERSION=${{ inputs.version || github.event.inputs.version }}
           cd build/linux/x64/release/bundle
-          tar -czf ../../../../../OCRMe_${VERSION}_linux_x64.tar.gz *
+          tar -czf OCRMe_${VERSION}_linux_x64.tar.gz *
+          mv OCRMe_${VERSION}_linux_x64.tar.gz ../../../../../
 
       - name: Upload tarball artifact
         uses: actions/upload-artifact@v4

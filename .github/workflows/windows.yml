@@ -137,8 +137,35 @@ jobs:
       - name: Setup Windows build
         run: flutter config --enable-windows-desktop
 
+      # Add this step to prepare for the build and avoid the CMake error
+      - name: Prepare Build Environment
+        shell: pwsh
+        run: |
+          # Create native_assets directory to prevent the CMake error
+          New-Item -ItemType Directory -Path "build\native_assets\windows" -Force -ErrorAction SilentlyContinue
+          
+          # Create directories that might be referenced by CMake
+          New-Item -ItemType Directory -Path "build\windows\x64\runner\Release" -Force -ErrorAction SilentlyContinue
+          
+          # Check CMake version
+          & 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe' --version
+          
+          # Make sure the install path exists and is writable
+          $installDir = Join-Path $env:GITHUB_WORKSPACE "build\windows\install"
+          New-Item -ItemType Directory -Path $installDir -Force -ErrorAction SilentlyContinue
+          
+          # Set explicit permissions (this shouldn't be necessary in most cases but might help)
+          $acl = Get-Acl $installDir
+          $rule = New-Object System.Security.AccessControl.FileSystemAccessRule("BUILTIN\Users", "FullControl", "ContainerInherit,ObjectInherit", "None", "Allow")
+          $acl.SetAccessRule($rule)
+          Set-Acl $installDir $acl
+          
+          Write-Host "Build environment prepared"
+
       - name: Build Windows
-        run: flutter build windows --release --no-pub # Add --no-pub flag for better performance
+        run: |
+          # Add verbose output to see what's happening
+          flutter -v build windows --release --no-pub
 
       - name: Create Portable ZIP
         shell: pwsh
