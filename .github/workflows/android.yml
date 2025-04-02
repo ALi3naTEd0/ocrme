@@ -179,7 +179,7 @@ jobs:
             sed -i '/ndk {/,/}/s/^/\/\/ /' android/app/build.gradle
             
             # Add a properly structured ABI splits configuration
-            cat >> android/app/build.gradle << 'EOF'
+            cat >> android/app/build.gradle << 'EOL'
             
             android {
                 // Add this configuration for split APKs without conflicting with NDK
@@ -192,7 +192,7 @@ jobs:
                     }
                 }
             }
-            EOF
+            EOL
             
             echo "Android build.gradle modified successfully"
           else
