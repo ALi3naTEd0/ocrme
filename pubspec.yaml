@@ -3,7 +3,7 @@ description: "A simple OCR application."
 publish_to: 'none'
 
 # Update the version here and it will be used in the Android build
-version: 0.1.0+1  # Format is [version name]+[version code]
+version: 0.1.0-1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
