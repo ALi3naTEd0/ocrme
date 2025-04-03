@@ -1,8 +1,8 @@
 # Maintainer: ali3nated0 <ali3nated0@github>
 
 pkgname=ocrme
-pkgver=0.1.0
-pkgrel=2
+pkgver=0.1.1
+pkgrel=1
 pkgdesc="A multi-platform OCR application for extracting text from images"
 arch=('x86_64' 'aarch64')
 url="https://github.com/ALi3naTEd0/OCRMe"
