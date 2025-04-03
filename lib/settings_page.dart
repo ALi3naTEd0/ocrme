@@ -1,11 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:ocrme/ocr_strategy_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'language_util.dart';
 import 'language_manager.dart';
 import 'ocr_processor.dart';
+import 'utils/platform_extensions.dart'; // Add this import
 
 class SettingsPage extends StatefulWidget {
   final LanguageManager languageManager;
@@ -418,6 +421,332 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Widget _buildPlatformInfoCard() {
+    return Card(
+      margin: const EdgeInsets.all(16),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Platform Information',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: Icon(
+                kIsWeb
+                    ? Icons.web
+                    : Platform.isAndroid
+                        ? Icons.android
+                        : Platform.isIOS
+                            ? Icons.ios_share
+                            : Platform.isLinux
+                                ? Icons.computer
+                                : Platform.isWindows
+                                    ? Icons.window
+                                    : Platform.isMacOS
+                                        ? Icons.desktop_mac
+                                        : Icons.devices,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              title: Text(
+                kIsWeb
+                    ? 'Web'
+                    : Platform.isAndroid
+                        ? 'Android'
+                        : Platform.isIOS
+                            ? 'iOS'
+                            : Platform.isLinux
+                                ? 'Linux'
+                                : Platform.isWindows
+                                    ? 'Windows'
+                                    : Platform.isMacOS
+                                        ? 'macOS'
+                                        : 'Unknown',
+              ),
+            ),
+            FutureBuilder<Map<String, dynamic>>(
+              future: OcrStrategyManager.getBestStrategy(),
+              builder: (builderContext, snapshot) {
+                if (!snapshot.hasData) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                final data = snapshot.data!;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ListTile(
+                      title: const Text('OCR Engine'),
+                      subtitle: Text(data['engine'].toString()),
+                    ),
+                    ListTile(
+                      title: const Text('Multiple Languages Support'),
+                      subtitle: Text(
+                          data['supportsMultipleLanguages'] ? 'Yes' : 'No'),
+                    ),
+                    if (PlatformExtensions.isDesktop &&
+                        data['engine'] == 'tesseract_command')
+                      ElevatedButton(
+                        onPressed: () => _handleShowLanguagesPressed(),
+                        child: const Text('Show Available Languages'),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Handle button press without using BuildContext in an async gap
+  void _handleShowLanguagesPressed() {
+    // First show the loading dialog synchronously with the current context
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const AlertDialog(
+        title: Text('Loading Languages'),
+        content: SizedBox(
+          height: 100,
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+    );
+
+    // Then start the async operation
+    _fetchAndShowLanguages();
+  }
+
+  // Separate method to handle async operations
+  Future<void> _fetchAndShowLanguages() async {
+    try {
+      final strategy = await OcrStrategyManager.getBestStrategy();
+      final languages = strategy['availableLanguages'] as List<dynamic>;
+
+      // Check if still mounted before proceeding
+      if (!mounted) return;
+
+      // Close the loading dialog
+      Navigator.of(context).pop();
+
+      // Show the languages dialog - this will use a fresh BuildContext from Navigator
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Available Tesseract Languages'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: ListView.builder(
+              itemCount: languages.length,
+              itemBuilder: (listContext, index) {
+                return ListTile(
+                  title: Text(languages[index].toString()),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      );
+    } catch (error) {
+      // Check if still mounted before showing error message
+      if (!mounted) return;
+
+      // Close the loading dialog if it's still showing
+      Navigator.of(context).pop();
+
+      // Show error message
+      _logger.severe('Error fetching languages: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading languages: $error')),
+      );
+    }
+  }
+
+  String _getOcrEngineName() {
+    // Show appropriate engines based on platform
+    if (PlatformExtensions.isDesktop) {
+      switch (widget.ocrProcessor.preferredEngine) {
+        case OcrEngine.tesseract:
+          return 'Tesseract';
+        case OcrEngine.mlKit:
+          return 'ML Kit';
+        case OcrEngine.auto:
+          return 'Auto (Best Results)';
+      }
+    } else {
+      // For mobile platforms
+      switch (widget.ocrProcessor.preferredEngine) {
+        case OcrEngine.tesseract:
+          return 'Tesseract Only';
+        case OcrEngine.mlKit:
+          return 'ML Kit';
+        case OcrEngine.auto:
+          return 'Auto (Best Results)';
+      }
+    }
+  }
+
+  void _setOcrEngine(String engineName) {
+    // Initialize with the current value first
+    OcrEngine engine = widget.ocrProcessor.preferredEngine;
+
+    if (PlatformExtensions.isDesktop) {
+      switch (engineName) {
+        case 'Tesseract':
+          engine = OcrEngine.tesseract;
+          break;
+        case 'ML Kit':
+          engine = OcrEngine.mlKit;
+          break;
+        case 'Auto (Best Results)':
+          engine = OcrEngine.auto;
+          break;
+      }
+    } else {
+      switch (engineName) {
+        case 'Tesseract Only':
+          engine = OcrEngine.tesseract;
+          break;
+        case 'ML Kit':
+          engine = OcrEngine.mlKit;
+          break;
+        case 'Auto (Best Results)':
+          engine = OcrEngine.auto;
+          break;
+      }
+    }
+
+    setState(() {
+      widget.ocrProcessor.preferredEngine = engine;
+    });
+
+    // Show language options dialog if ML Kit is selected
+    if (engineName == 'ML Kit') {
+      _showMlKitLanguagesDialog();
+    }
+  }
+
+  void _showMlKitLanguagesDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ML Kit Language Support'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: Column(
+            children: [
+              Text(
+                PlatformExtensions.isDesktop
+                    ? 'ML Kit on desktop has limited support and may not work properly with all images.'
+                    : 'ML Kit automatically detects language for the following scripts:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: PlatformExtensions.isDesktop
+                      ? Colors.orange
+                      : Colors.black,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: ListView(
+                  children: [
+                    _buildMlKitScriptTile(
+                      'Latin',
+                      'English, Spanish, French, etc.',
+                      isSupported: true,
+                    ),
+                    _buildMlKitScriptTile(
+                      'Chinese',
+                      'Simplified & Traditional',
+                      isSupported: !PlatformExtensions.isDesktop,
+                    ),
+                    _buildMlKitScriptTile(
+                      'Japanese',
+                      null,
+                      isSupported: !PlatformExtensions.isDesktop,
+                    ),
+                    _buildMlKitScriptTile(
+                      'Korean',
+                      null,
+                      isSupported: !PlatformExtensions.isDesktop,
+                    ),
+                    _buildMlKitScriptTile(
+                      'Devanagari',
+                      'Hindi, Sanskrit, etc.',
+                      isSupported: !PlatformExtensions.isDesktop,
+                    ),
+                    _buildMlKitScriptTile(
+                      'Cyrillic',
+                      'Russian, Ukrainian, etc.',
+                      isSupported: !PlatformExtensions.isDesktop,
+                    ),
+                    _buildMlKitScriptTile(
+                      'Arabic',
+                      null,
+                      isSupported: !PlatformExtensions.isDesktop,
+                    ),
+                    if (PlatformExtensions.isDesktop)
+                      const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: Text(
+                          'Note: For best results on desktop, we recommend using Tesseract or Auto mode.',
+                          style: TextStyle(fontStyle: FontStyle.italic),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMlKitScriptTile(String scriptName, String? examples,
+      {bool isSupported = true}) {
+    return ListTile(
+      leading: Icon(
+        isSupported ? Icons.check_circle : Icons.cancel,
+        color: isSupported ? Colors.green : Colors.red,
+      ),
+      title: Text(
+        scriptName,
+        style: TextStyle(
+          color: isSupported ? Colors.black : Colors.grey,
+        ),
+      ),
+      subtitle: examples != null ? Text(examples) : null,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -451,7 +780,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // OCR Settings Card - Add this new card
+                      // OCR Settings Card
                       Card(
                         margin: const EdgeInsets.all(16),
                         elevation: 2,
@@ -481,16 +810,29 @@ class _SettingsPageState extends State<SettingsPage> {
                                       _setOcrEngine(newValue);
                                     }
                                   },
-                                  items: <String>[
-                                    'Auto (Best Results)',
-                                    'Tesseract Only',
-                                  ].map<DropdownMenuItem<String>>(
-                                      (String value) {
-                                    return DropdownMenuItem<String>(
-                                      value: value,
-                                      child: Text(value),
-                                    );
-                                  }).toList(),
+                                  items: PlatformExtensions.isDesktop
+                                      ? <String>[
+                                          'Tesseract',
+                                          'ML Kit',
+                                          'Auto (Best Results)',
+                                        ].map<DropdownMenuItem<String>>(
+                                          (String value) {
+                                          return DropdownMenuItem<String>(
+                                            value: value,
+                                            child: Text(value),
+                                          );
+                                        }).toList()
+                                      : <String>[
+                                          'Auto (Best Results)',
+                                          'ML Kit',
+                                          'Tesseract Only',
+                                        ].map<DropdownMenuItem<String>>(
+                                          (String value) {
+                                          return DropdownMenuItem<String>(
+                                            value: value,
+                                            child: Text(value),
+                                          );
+                                        }).toList(),
                                 ),
                               ),
 
@@ -569,6 +911,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ),
                       ),
+
+                      // Add Platform Info Card
+                      _buildPlatformInfoCard(),
 
                       // Storage information card
                       Card(
@@ -714,44 +1059,6 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       scaffoldMessengerKey: _scaffoldMessengerKey,
     );
-  }
-
-  String _getOcrEngineName() {
-    switch (widget.ocrProcessor.preferredEngine) {
-      case OcrEngine.tesseract:
-        return 'Tesseract Only';
-      case OcrEngine.mlKit:
-        return 'ML Kit (Not Available)';
-      case OcrEngine.auto:
-        return 'Auto (Best Results)';
-    }
-  }
-
-  void _setOcrEngine(String engineName) {
-    // Initialize with a default value to fix the non-nullable variable issue
-    OcrEngine engine = OcrEngine.auto;
-
-    switch (engineName) {
-      case 'Tesseract Only':
-        engine = OcrEngine.tesseract;
-        break;
-      case 'ML Kit':
-        // Show a message that ML Kit is not available
-        _scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(
-            content: Text('ML Kit is not available in this build'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-        return;
-      case 'Auto (Best Results)':
-        engine = OcrEngine.auto;
-        break;
-    }
-
-    setState(() {
-      widget.ocrProcessor.preferredEngine = engine;
-    });
   }
 
   String _formatDate(DateTime date) {

@@ -80,7 +80,8 @@ class _UnifiedDropZoneState extends State<UnifiedDropZone> {
             width: widget.width,
             child: DropzoneView(
               onCreated: (controller) => _controller = controller,
-              onDrop: (dynamic event) => _handleDropzoneFile(event),
+              // Replace deprecated onDrop with onDropFile
+              onDropFile: (dynamic file) => _handleDropzoneFile(file),
               onHover: () => setState(() => _isDragging = true),
               onLeave: () => setState(() => _isDragging = false),
             ),

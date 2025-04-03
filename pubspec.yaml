@@ -14,7 +14,7 @@ dependencies:
   cupertino_icons: ^1.0.2
   image_picker: ^1.0.4
   path_provider: ^2.1.0
-  flutter_dropzone: ^3.0.6
+  flutter_dropzone: ^4.2.1
   desktop_drop: ^0.4.4
   logging: ^1.2.0
   path: ^1.8.3
@@ -28,8 +28,16 @@ dependencies:
   # Update permission_handler to the latest version that supports Flutter 3.x embedding
   permission_handler: ^11.0.1
   
-  # Remove Google ML Kit altogether since we're not using it right now
-  # We'll implement a pure Tesseract OCR approach
+  # Add device_info_plus to check Android version
+  device_info_plus: ^9.0.3
+  
+  # Google ML Kit for text recognition
+  google_mlkit_text_recognition: ^0.15.0
+  
+  # Removed flutter_tesseract_ocr since we're not using it anymore
+  
+  # Improved file handling for Android
+  flutter_file_dialog: ^3.0.2
 
 dev_dependencies:
   flutter_test:
@@ -40,9 +48,9 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo.svg
-    - assets/logo_mobile.svg  # Add this line for backward compatibility
+    - assets/logo_mobile.svg
     - assets/logo.png
     - assets/tessdata_config.json
-    # Only include essential language files for a super light app
+    # Only include essential language files for ML Kit fallback on desktop
     - assets/tessdata/eng.traineddata
     - assets/tessdata/spa.traineddata

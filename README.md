@@ -28,9 +28,9 @@ OCRMe is a modern, cross-platform application that extracts text from images usi
 - 🖼️ **Image to Text**: Extract text from photos, screenshots, PDFs and documents
 - 🌐 **Multi-language Support**: Process text in 100+ languages 
 - 💾 **Automatic Saving**: Save recognized text automatically or manually
-- 📊 **Confidence Scoring**: View accuracy rating for OCR results
-- 🔄 **Text Correction**: Intelligent auto-correction of common OCR errors
-- ⚡ **Offline Processing**: All OCR happens locally on your device
+- 📊 **Confidence Scoring**: View accuracy rating for OCR results (coming soon)
+- 🔄 **Text Correction**: Intelligent auto-correction of common OCR errors (coming soon)
+- ⚡ **Offline Processing**: All OCR happens locally on your device (coming soon)
 - 📱 **Cross Platform**: Works on Android, Windows, macOS, and Linux
 
 ## 📥 Installation

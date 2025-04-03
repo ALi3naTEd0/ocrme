@@ -6,23 +6,26 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as path;
 import 'language_manager.dart';
+import 'android_tesseract.dart'; // Add this import
 
-// Create a result class to hold both text and confidence score
+// Create a result class to hold text and metadata (without confidence score)
 class OcrResult {
   final String text;
-  final double? confidenceScore;
   final String? engine; // Track which OCR engine was used
   final Map<String, dynamic>? metadata; // Additional data from OCR
 
-  OcrResult(this.text, this.confidenceScore,
-      {this.engine = 'tesseract', this.metadata});
+  OcrResult(
+    this.text, {
+    this.engine = 'tesseract',
+    this.metadata,
+  });
 }
 
-// Define OCR Engine options
+// Define OCR Engine options - simplify to avoid conflicts
 enum OcrEngine {
   tesseract, // Command-line Tesseract
-  mlKit, // Google ML Kit (will be used if available)
-  auto // Try multiple engines and combine results
+  mlKit, // Keep this to avoid breaking existing code
+  auto, // Try multiple engines and combine results
 }
 
 class OcrProcessor {
@@ -181,6 +184,14 @@ class OcrProcessor {
 
   OcrProcessor() {
     _initializeOcr();
+
+    // Set platform-specific default engine
+    if (Platform.isAndroid || Platform.isIOS) {
+      preferredEngine =
+          OcrEngine.auto; // Default to auto on mobile (favoring ML Kit)
+    } else if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+      preferredEngine = OcrEngine.tesseract; // Default to Tesseract on desktop
+    }
   }
 
   Future<void> _initializeOcr() async {
@@ -237,8 +248,9 @@ class OcrProcessor {
 
   Future<bool> _shouldExtractLanguage(String langCode) async {
     // Check if it's in the list of languages marked as deleted by user
-    bool isMarkedAsRemoved =
-        await _languageManager.isLanguageMarkedAsRemoved(langCode);
+    bool isMarkedAsRemoved = await _languageManager.isLanguageMarkedAsRemoved(
+      langCode,
+    );
     return !isMarkedAsRemoved;
   }
 
@@ -249,7 +261,8 @@ class OcrProcessor {
       // Skip if not a bundled language
       if (!bundledLanguages.contains(languageCode)) {
         _logger.info(
-            '$languageCode is not a bundled language, skipping extraction');
+          '$languageCode is not a bundled language, skipping extraction',
+        );
         return;
       }
 
@@ -284,8 +297,10 @@ class OcrProcessor {
     return _languageManager.isLanguageAvailable(languageCode);
   }
 
-  Future<bool> downloadLanguage(String languageCode,
-      {Function(double)? onProgress}) async {
+  Future<bool> downloadLanguage(
+    String languageCode, {
+    Function(double)? onProgress,
+  }) async {
     try {
       // Skip download if the language is already included in the app bundle
       if (bundledLanguages.contains(languageCode)) {
@@ -303,12 +318,14 @@ class OcrProcessor {
     }
   }
 
-  Future<OcrResult> processImage(File imageFile,
-      {Function(String)? onLanguageUnavailable}) async {
+  Future<OcrResult> processImage(
+    File imageFile, {
+    Function(String)? onLanguageUnavailable,
+  }) async {
     try {
       if (!await imageFile.exists()) {
         _logger.severe('File does not exist: ${imageFile.path}');
-        return OcrResult('Error: File does not exist', 0.0);
+        return OcrResult('Error: File does not exist');
       }
 
       _logger.info('Processing image: ${imageFile.path}');
@@ -324,17 +341,146 @@ class OcrProcessor {
         if (onLanguageUnavailable != null) {
           onLanguageUnavailable(_currentLanguage);
           return OcrResult(
-              'Language $_currentLanguage is not available. Please download it first.',
-              0.0);
+            'Language $_currentLanguage is not available. Please download it first.',
+          );
         }
       }
 
-      // We'll just use Tesseract for now
+      // Check if we're on desktop and using ML Kit
+      if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+        if (preferredEngine == OcrEngine.mlKit) {
+          return await _processWithMlKitOnDesktop(imageFile);
+        }
+      }
+
+      // For Android, use the Android-specific OCR implementation
+      if (Platform.isAndroid) {
+        return await _processWithAndroidTesseract(imageFile);
+      }
+      // Otherwise use the standard Tesseract command-line approach
       return await _processWithTesseract(imageFile);
     } catch (e) {
       _logger.severe('OCR Error: $e');
-      return OcrResult('Error: ${e.toString()}', null);
+      return OcrResult('Error: ${e.toString()}');
     }
+  }
+
+  Future<OcrResult> _processWithAndroidTesseract(File imageFile) async {
+    try {
+      _logger.info('Using Google ML Kit implementation');
+
+      // Get the image path and tessdata path
+      final imagePath = imageFile.path;
+
+      if (_localTessdataDir == null) {
+        _logger.severe('Tessdata directory not initialized');
+        return OcrResult(
+          'Error: OCR not properly initialized',
+          engine: 'ml_kit',
+        );
+      }
+
+      _logger.info('Using tessdata directory: $_localTessdataDir');
+      _logger.info(
+        'Processing image: $imagePath with language $_currentLanguage',
+      );
+
+      try {
+        // Add Spanish context hints when Spanish is selected
+        Map<String, dynamic> hints = {};
+        if (_currentLanguage == 'spa') {
+          _logger.info('Adding Spanish language hints');
+          hints['preferSpanishRecognition'] = true;
+        }
+
+        // Use the ML Kit implementation with language hints
+        final result = await AndroidTesseract.performOcr(
+          imagePath,
+          _currentLanguage,
+          _localTessdataDir!,
+          hints: hints,
+        );
+
+        final String recognizedText = result['text'] as String? ?? '';
+
+        // Apply text validation if enabled
+        String finalText = recognizedText;
+        if (enableTextValidation) {
+          finalText = _validateAndCorrectText(recognizedText);
+        }
+
+        return OcrResult(
+          finalText,
+          engine: 'ml_kit',
+          metadata: {'original_text': recognizedText},
+        );
+      } catch (e) {
+        _logger.severe('ML Kit error: $e');
+
+        // This is the fallback OCR method if Google ML Kit fails
+        return _performFallbackOcr(imageFile);
+      }
+    } catch (e) {
+      _logger.severe('ML Kit error: $e');
+      return OcrResult(
+        'Error: ${e.toString()}',
+        engine: 'ml_kit',
+      );
+    }
+  }
+
+  Future<OcrResult> _processWithMlKitOnDesktop(File imageFile) async {
+    try {
+      _logger.info('Using ML Kit on desktop');
+
+      // Get the image path
+      final imagePath = imageFile.path;
+
+      try {
+        // Use the ML Kit implementation directly on desktop
+        final result = await AndroidTesseract.performOcr(
+          imagePath,
+          _currentLanguage,
+          _localTessdataDir ?? '',
+        );
+
+        final String recognizedText = result['text'] as String? ?? '';
+
+        // Apply text validation if enabled
+        String finalText = recognizedText;
+        if (enableTextValidation) {
+          finalText = _validateAndCorrectText(recognizedText);
+        }
+
+        return OcrResult(
+          finalText,
+          engine:
+              'ml_kit_desktop', // Use a distinct name for desktop ML Kit implementation
+          metadata: {'original_text': recognizedText},
+        );
+      } catch (e) {
+        _logger.severe('ML Kit on desktop error: $e');
+        return OcrResult(
+          'Error: ML Kit is not fully supported on desktop. Please use Tesseract or Auto mode instead.',
+          engine: 'ml_kit_error',
+        );
+      }
+    } catch (e) {
+      _logger.severe('ML Kit desktop processing error: $e');
+      return OcrResult(
+        'Error: ${e.toString()}',
+        engine: 'ml_kit_error',
+      );
+    }
+  }
+
+  Future<OcrResult> _performFallbackOcr(File imageFile) async {
+    _logger.info('Using fallback OCR method');
+
+    const String fallbackText =
+        "OCR processing failed. Try another image or reinstall the app.";
+
+    return OcrResult(fallbackText, engine: 'fallback');
   }
 
   Future<OcrResult> _processWithTesseract(File imageFile) async {
@@ -369,7 +515,7 @@ preserve_interword_spaces ${_config["preserve_interword_spaces"] ?? "1"}
 
     if (result.exitCode != 0) {
       _logger.severe('Tesseract error: ${result.stderr}');
-      return OcrResult('Error: ${result.stderr}', 0.0);
+      return OcrResult('Error: ${result.stderr}');
     }
 
     // Read the output file
@@ -379,20 +525,14 @@ preserve_interword_spaces ${_config["preserve_interword_spaces"] ?? "1"}
       text = await outputFile.readAsString();
       if (text.isEmpty) {
         _logger.warning('OCR result is empty');
-        return OcrResult('No text found in image', null, engine: 'tesseract');
+        return OcrResult('No text found in image', engine: 'tesseract');
       }
     } else {
       _logger.warning('Output file not found');
-      return OcrResult('Error: Output file not generated', null,
-          engine: 'tesseract');
-    }
-
-    // Read the confidence file
-    final confidenceFile = File('$outputBase.tsv');
-    double? confidenceScore;
-
-    if (await confidenceFile.exists()) {
-      confidenceScore = await _calculateConfidenceScore(confidenceFile);
+      return OcrResult(
+        'Error: Output file not generated',
+        engine: 'tesseract',
+      );
     }
 
     // Validate the OCR result
@@ -400,103 +540,50 @@ preserve_interword_spaces ${_config["preserve_interword_spaces"] ?? "1"}
       text = _validateAndCorrectText(text);
     }
 
-    return OcrResult(text, confidenceScore, engine: 'tesseract');
-  }
-
-  Future<double?> _calculateConfidenceScore(File confidenceFile) async {
-    try {
-      final confidenceData = await confidenceFile.readAsString();
-      final lines = confidenceData
-          .split('\n')
-          .where((line) => line.trim().isNotEmpty)
-          .toList();
-
-      // Skip header row
-      if (lines.length > 1) {
-        double totalConfidence = 0.0;
-        int confCount = 0;
-        List<double> confidences = [];
-
-        // Start from 1 to skip header
-        for (int i = 1; i < lines.length; i++) {
-          final columns = lines[i].split('\t');
-          if (columns.length > 10) {
-            double conf = double.tryParse(columns[10]) ?? 0.0;
-            if (conf <= 0 && columns.length > 8) {
-              conf = double.tryParse(columns[8]) ?? 0.0;
-            }
-            if (conf > 0) {
-              confidences.add(conf);
-              totalConfidence += conf;
-              confCount++;
-            }
-          }
-        }
-
-        if (confCount > 0) {
-          if (confidences.length > 5) {
-            confidences.sort();
-            double median;
-            if (confidences.length % 2 == 0) {
-              median = (confidences[confidences.length ~/ 2] +
-                      confidences[confidences.length ~/ 2 - 1]) /
-                  2;
-            } else {
-              median = confidences[confidences.length ~/ 2];
-            }
-
-            int q1Index = confidences.length ~/ 4;
-            int q3Index = confidences.length * 3 ~/ 4;
-            double q1 = confidences[q1Index];
-            double q3 = confidences[q3Index];
-            double iqr = q3 - q1;
-
-            double lowerBound = q1 - 1.5 * iqr;
-            double upperBound = q3 + 1.5 * iqr;
-
-            double filteredTotal = 0.0;
-            int filteredCount = 0;
-            for (final conf in confidences) {
-              if (conf >= lowerBound && conf <= upperBound) {
-                filteredTotal += conf;
-                filteredCount++;
-              }
-            }
-
-            if (filteredCount > 0) {
-              return filteredTotal / filteredCount;
-            } else {
-              return median;
-            }
-          } else {
-            return totalConfidence / confCount;
-          }
-        }
-      }
-    } catch (e) {
-      _logger.warning('Error processing confidence data: $e');
-    }
-    return null;
+    return OcrResult(text, engine: 'tesseract');
   }
 
   String _validateAndCorrectText(String text) {
     if (text.isEmpty) return text;
 
+    // Common OCR errors and corrections
     Map<RegExp, String> commonErrors = {
       RegExp(r'(\d)l(\d)'): r'$11$2',
       RegExp(r'(\d)I(\d)'): r'$11$2',
       RegExp(r'l(\d)'): r'1$1',
       RegExp(r'O(\d)'): r'0$1',
       RegExp(r'(\d)O'): r'$10',
-      RegExp(r'[^\x00-\x7F]+'): ' ',
     };
 
-    String corrected = text;
+    // Special processing for Spanish if current language is Spanish
+    if (_currentLanguage == 'spa') {
+      // For Spanish, use standard corrections but be careful with accented characters
+      String corrected = text;
 
+      // Apply common error corrections but skip the non-ASCII cleanup for Spanish
+      for (var entry in commonErrors.entries) {
+        corrected = corrected.replaceAll(entry.key, entry.value);
+      }
+
+      // Clean up multiple spaces
+      corrected = corrected.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+      int changes = text.length - corrected.length;
+      if (changes.abs() > 0) {
+        _logger.info('Made $changes corrections to Spanish OCR text');
+      }
+
+      return corrected;
+    }
+
+    // For other languages, use the standard correction
+    String corrected = text;
     commonErrors.forEach((pattern, replacement) {
       corrected = corrected.replaceAll(pattern, replacement);
     });
 
+    // Also apply non-ASCII cleanup for non-Spanish languages
+    corrected = corrected.replaceAll(RegExp(r'[^\x00-\x7F]+'), ' ');
     corrected = corrected.replaceAll(RegExp(r'\s+'), ' ').trim();
 
     int changes = text.length - corrected.length;

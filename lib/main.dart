@@ -14,6 +14,7 @@ import 'custom_app_bar.dart';
 import 'language_util.dart';
 import 'settings_page.dart';
 import 'utils/platform_permissions.dart';
+import 'platform_ocr_factory.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +34,9 @@ void main() async {
     databaseFactory = databaseFactoryFfi;
     Logger.root.info('Initialized sqflite_ffi for desktop');
   }
+
+  // Set up platform-specific OCR implementation
+  await PlatformOcrFactory.setupOcrForPlatform();
 
   runApp(const MyApp());
 }
@@ -85,7 +89,6 @@ class _MyHomePageState extends State<MyHomePage> {
   final String _outputFilename = 'output.txt';
   String _selectedLanguage = 'eng';
   bool _isProcessing = false;
-  double _confidenceScore = 0.0;
   final bool _autoSaveEnabled = true;
 
   // Add variables to track OCR engine and validation status
@@ -137,7 +140,6 @@ class _MyHomePageState extends State<MyHomePage> {
       setState(() {
         _image = File(pickedFile.path);
         _ocrResult = '';
-        _confidenceScore = 0.0;
       });
 
       // Automatically start OCR processing when an image is selected
@@ -156,7 +158,6 @@ class _MyHomePageState extends State<MyHomePage> {
       setState(() {
         _image = File(pickedFile.path);
         _ocrResult = '';
-        _confidenceScore = 0.0;
       });
 
       // Automatically start OCR processing when a photo is taken
@@ -170,7 +171,6 @@ class _MyHomePageState extends State<MyHomePage> {
         setState(() {
           _isProcessing = true;
           _ocrResult = 'Processing...';
-          _confidenceScore = 0.0;
         });
 
         // Add special handling for Android
@@ -186,13 +186,15 @@ class _MyHomePageState extends State<MyHomePage> {
             // Extract bundled tessdata from Android assets
             try {
               // Copy eng and spa traineddata to the app's tessdata directory
-              final assetFile =
-                  await rootBundle.load('assets/tessdata/eng.traineddata');
+              final assetFile = await rootBundle.load(
+                'assets/tessdata/eng.traineddata',
+              );
               final targetFile = File('${tessDataDir.path}/eng.traineddata');
               await targetFile.writeAsBytes(assetFile.buffer.asUint8List());
 
-              final spanishAsset =
-                  await rootBundle.load('assets/tessdata/spa.traineddata');
+              final spanishAsset = await rootBundle.load(
+                'assets/tessdata/spa.traineddata',
+              );
               final spanishFile = File('${tessDataDir.path}/spa.traineddata');
               await spanishFile.writeAsBytes(spanishAsset.buffer.asUint8List());
             } catch (e) {
@@ -210,7 +212,6 @@ class _MyHomePageState extends State<MyHomePage> {
 
         setState(() {
           _ocrResult = result.text;
-          _confidenceScore = result.confidenceScore ?? -1.0;
           _isProcessing = false;
 
           // Store the engine used
@@ -228,8 +229,9 @@ class _MyHomePageState extends State<MyHomePage> {
           await _saveResultToFile(result.text);
         }
 
-        _logger
-            .info('OCR completed successfully using ${result.engine} engine');
+        _logger.info(
+          'OCR completed successfully using ${result.engine} engine',
+        );
       } catch (e) {
         setState(() {
           _ocrResult = 'Error: $e';
@@ -313,7 +315,6 @@ class _MyHomePageState extends State<MyHomePage> {
     setState(() {
       _image = file;
       _ocrResult = '';
-      _confidenceScore = 0.0;
     });
     await _performOCR();
   }
@@ -364,7 +365,8 @@ class _MyHomePageState extends State<MyHomePage> {
         return AlertDialog(
           title: Text('Download $languageName Language'),
           content: Text(
-              'The $languageName language data is not installed. Would you like to download it now?'),
+            'The $languageName language data is not installed. Would you like to download it now?',
+          ),
           actions: [
             TextButton(
               onPressed: () {
@@ -415,7 +417,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       dialogShowing = false;
                     },
                     child: const Text('Done'),
-                  )
+                  ),
               ],
             );
           },
@@ -475,19 +477,18 @@ class _MyHomePageState extends State<MyHomePage> {
             child: ListView.builder(
               itemCount: OcrProcessor.supportedLanguages.length,
               itemBuilder: (context, index) {
-                final entry =
-                    OcrProcessor.supportedLanguages.entries.elementAt(index);
+                final entry = OcrProcessor.supportedLanguages.entries.elementAt(
+                  index,
+                );
                 final languageName = entry.key;
                 final languageCode = entry.value;
                 final flag = LanguageUtil.getFlagEmoji(languageCode);
-                final isPreinstalled =
-                    OcrProcessor.bundledLanguages.contains(languageCode);
+                final isPreinstalled = OcrProcessor.bundledLanguages.contains(
+                  languageCode,
+                );
 
                 return ListTile(
-                  leading: Text(
-                    flag,
-                    style: const TextStyle(fontSize: 24),
-                  ),
+                  leading: Text(flag, style: const TextStyle(fontSize: 24)),
                   title: Text(languageName),
                   trailing: isPreinstalled
                       ? const Icon(Icons.check, color: Colors.green)
@@ -533,9 +534,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return Card(
       elevation: 4,
       shadowColor: Colors.black26,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -546,58 +545,17 @@ class _MyHomePageState extends State<MyHomePage> {
               children: [
                 const Text(
                   'OCR Result:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 if (_ocrResult.isNotEmpty &&
                     _ocrResult != 'No result yet' &&
                     !_ocrResult.startsWith('Error:') &&
                     !_ocrResult.startsWith('Processing...'))
-                  Row(
-                    children: [
-                      if (_confidenceScore > 0)
-                        Tooltip(
-                          message: 'Confidence Level',
-                          child: Row(
-                            children: [
-                              Icon(
-                                _confidenceScore > 85
-                                    ? Icons.check_circle
-                                    : _confidenceScore > 70
-                                        ? Icons.info
-                                        : Icons.warning,
-                                color: _confidenceScore > 85
-                                    ? Colors.green
-                                    : _confidenceScore > 70
-                                        ? Colors.orange
-                                        : Colors.red,
-                                size: 18,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${_confidenceScore.toStringAsFixed(1)}%',
-                                style: TextStyle(
-                                  color: _confidenceScore > 85
-                                      ? Colors.green
-                                      : _confidenceScore > 70
-                                          ? Colors.orange
-                                          : Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(width: 12),
-                      IconButton(
-                        icon: const Icon(Icons.copy),
-                        tooltip: 'Copy to clipboard',
-                        onPressed: _copyToClipboard,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ],
+                  IconButton(
+                    icon: const Icon(Icons.copy),
+                    tooltip: 'Copy to clipboard',
+                    onPressed: _copyToClipboard,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
               ],
             ),
@@ -609,14 +567,10 @@ class _MyHomePageState extends State<MyHomePage> {
                 padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 12,
-                      color: Colors.grey[600],
-                    ),
+                    Icon(Icons.info_outline, size: 12, color: Colors.grey[600]),
                     const SizedBox(width: 4),
                     Text(
-                      'Engine: $_usedEngine${_textCorrected ? ' • Text validation applied' : ''}',
+                      'Engine: ${_usedEngine == "ml_kit" ? "Google ML Kit" : _usedEngine}${_textCorrected ? ' • Text validation applied' : ''}',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -632,15 +586,10 @@ class _MyHomePageState extends State<MyHomePage> {
               decoration: BoxDecoration(
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.grey[300]!,
-                ),
+                border: Border.all(color: Colors.grey[300]!),
               ),
               width: double.infinity,
-              constraints: const BoxConstraints(
-                minHeight: 100,
-                maxHeight: 300,
-              ),
+              constraints: const BoxConstraints(minHeight: 100, maxHeight: 300),
               child: SingleChildScrollView(
                 child: SelectableText(
                   _ocrResult.isEmpty ? 'No result yet' : _ocrResult,
@@ -698,10 +647,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   gradient: LinearGradient(
                     colors: [
                       Theme.of(context).colorScheme.surface,
-                      Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest
-                          .withAlpha(77),
+                      Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest.withAlpha(77),
                     ],
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
@@ -761,8 +709,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                           ),
                                           if (_isProcessing)
                                             Container(
-                                              color:
-                                                  Colors.black.withAlpha(128),
+                                              color: Colors.black.withAlpha(
+                                                128,
+                                              ),
                                               child: const Center(
                                                 child:
                                                     CircularProgressIndicator(),
